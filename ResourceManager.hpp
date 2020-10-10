@@ -5,10 +5,10 @@
 #include <fstream>
 #include <span>
 
-struct ResourcePack {
+struct ResourceManager {
 	std::filesystem::path basePath;
 
-	explicit ResourcePack(std::filesystem::path assets) : basePath(std::move(assets)) {}
+	explicit ResourceManager(std::filesystem::path assets) : basePath(std::move(assets)) {}
 
 	inline bool contains(const std::string& path) {
 		const auto file_path = basePath / path;

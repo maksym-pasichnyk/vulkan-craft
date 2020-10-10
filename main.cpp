@@ -7,7 +7,7 @@
 
 #include <iostream>
 #include <bitset>
-#include <ResourcePack.hpp>
+#include <ResourceManager.hpp>
 #include "console.hpp"
 
 #include "RenderSystem.hpp"
@@ -70,89 +70,332 @@ struct CommandPool {
 	}
 };
 
+struct Renderer {
+	RenderSystem* core = RenderSystem::Get();
+
+	int _width;
+	int _height;
+
+	vk::PipelineLayout _pipelineLayout;
+	vk::Pipeline _pipeline;
+//	vk::Sampler _sampler;
+
+	RenderBuffer _buffer;
+
+	void initialize(WindowGLFW& window, ResourceManager& rm, vk::DescriptorPool descriptorPool, vk::RenderPass renderPass) {
+		_width = window.width();
+		_height = window.height();
+
+		vk::ShaderModule vertShader{nullptr};
+		rm.loadFile("default.vert.spv", [&](std::span<char> bytes) {
+			vertShader = core->device().createShaderModule({
+					.codeSize = bytes.size(),
+					.pCode = reinterpret_cast<const uint32_t *>(bytes.data())
+			});
+		});
+
+		vk::ShaderModule fragShader{nullptr};
+		rm.loadFile("default.frag.spv", [&](std::span<char> bytes) {
+			fragShader = core->device().createShaderModule({
+					.codeSize = bytes.size(),
+					.pCode = reinterpret_cast<const uint32_t *>(bytes.data())
+			});
+		});
+
+//			vk::SamplerCreateInfo sampler_create_info{
+//					.magFilter = vk::Filter::eLinear,
+//					.minFilter = vk::Filter::eLinear,
+//					.mipmapMode = vk::SamplerMipmapMode::eLinear,
+//					.addressModeU = vk::SamplerAddressMode::eRepeat,
+//					.addressModeV = vk::SamplerAddressMode::eRepeat,
+//					.addressModeW = vk::SamplerAddressMode::eRepeat,
+//					.maxAnisotropy = 1.0f,
+//					.minLod = -1000,
+//					.maxLod = 1000
+//			};
+
+//			_sampler = core->device().createSampler(sampler_create_info, nullptr);
+
+//			vk::DescriptorSetLayoutBinding descriptorSetLayoutBinding{
+//					.binding = 0,
+//					.descriptorType = vk::DescriptorType::eCombinedImageSampler,
+//					.descriptorCount = 1,
+//					.stageFlags = vk::ShaderStageFlagBits::eFragment,
+//					.pImmutableSamplers = &_sampler
+//			};
+
+//			vk::DescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{
+//					.bindingCount = 1,
+//					.pBindings = &descriptorSetLayoutBinding
+//			};
+//			_descriptorSetLayout = core->device().createDescriptorSetLayout(descriptor_set_layout_create_info, nullptr);
+//			_fontDescriptor = vkx::allocate(_descriptorPool, _descriptorSetLayout);
+
+//			vk::PushConstantRange pushConstant {
+//					vk::ShaderStageFlagBits::eVertex, 0, sizeof(float[4])
+//			};
+
+		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{
+				.setLayoutCount = /*1*/0,
+				.pSetLayouts = nullptr,
+				.pushConstantRangeCount = /*1*/0,
+				.pPushConstantRanges = nullptr
+		};
+		_pipelineLayout = core->device().createPipelineLayout(pipelineLayoutCreateInfo, nullptr);
+
+		vk::PipelineShaderStageCreateInfo stages[] {
+				{.stage = vk::ShaderStageFlagBits::eVertex, .module = vertShader, .pName = "main"},
+				{.stage = vk::ShaderStageFlagBits::eFragment, .module = fragShader, .pName = "main"},
+		};
+
+		vk::VertexInputBindingDescription bindings[] {
+				{0, sizeof(ImVec2), vk::VertexInputRate::eVertex}
+		};
+
+		vk::VertexInputAttributeDescription attributes[]{
+				{0, bindings[0].binding, vk::Format::eR32G32Sfloat, 0},
+		};
+
+		vk::PipelineVertexInputStateCreateInfo vertexInputState{
+				.vertexBindingDescriptionCount = 1,
+				.pVertexBindingDescriptions = bindings,
+				.vertexAttributeDescriptionCount = 1,
+				.pVertexAttributeDescriptions = attributes
+		};
+
+		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState{
+				.topology = vk::PrimitiveTopology::eTriangleList,
+				.primitiveRestartEnable = false
+		};
+
+		vk::Viewport viewport{
+			.x = 0,
+			.y = 0,
+			.width = float(_width),
+			.height = float(_height),
+			.minDepth = 0,
+			.maxDepth = 1
+		};
+
+
+		vk::Rect2D scissor {
+			{0, 0}, {uint32_t(_width), uint32_t(_height)}
+		};
+
+		vk::PipelineViewportStateCreateInfo viewportState{
+				.viewportCount = 1,
+				.pViewports = &viewport,
+				.scissorCount = 1,
+				.pScissors = &scissor
+		};
+
+		vk::PipelineRasterizationStateCreateInfo rasterizationState{
+				.polygonMode = vk::PolygonMode::eFill,
+				.cullMode = vk::CullModeFlagBits::eNone,
+				.frontFace = vk::FrontFace::eCounterClockwise,
+				.lineWidth = 1.0f
+		};
+
+		vk::PipelineMultisampleStateCreateInfo multisampleState;
+
+		vk::PipelineColorBlendAttachmentState colorBlendAttachmentState{
+				.blendEnable = VK_TRUE,
+				.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
+				.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+				.colorBlendOp = vk::BlendOp::eAdd,
+				.srcAlphaBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+				.dstAlphaBlendFactor = vk::BlendFactor::eZero,
+				.alphaBlendOp = vk::BlendOp::eAdd,
+				.colorWriteMask = vk::ColorComponentFlagBits::eR |
+						vk::ColorComponentFlagBits::eG |
+						vk::ColorComponentFlagBits::eB |
+						vk::ColorComponentFlagBits::eA
+		};
+
+		vk::PipelineDepthStencilStateCreateInfo depthStencilState;
+
+		vk::PipelineColorBlendStateCreateInfo colorBlendState{
+				.attachmentCount = 1,
+				.pAttachments = &colorBlendAttachmentState
+		};
+
+//		vk::DynamicState dynamic_states[]{
+//				vk::DynamicState::eViewport,
+//				vk::DynamicState::eScissor
+//		};
+//
+//		vk::PipelineDynamicStateCreateInfo dynamicState{
+//				.dynamicStateCount = 2,
+//				.pDynamicStates = dynamic_states
+//		};
+
+		vk::GraphicsPipelineCreateInfo pipelineCreateInfo{
+				.stageCount = 2,
+				.pStages = stages,
+				.pVertexInputState = &vertexInputState,
+				.pInputAssemblyState = &inputAssemblyState,
+				.pViewportState = &viewportState,
+				.pRasterizationState = &rasterizationState,
+				.pMultisampleState = &multisampleState,
+				.pDepthStencilState = &depthStencilState,
+				.pColorBlendState = &colorBlendState,
+//				.pDynamicState = &dynamicState,
+				.layout = _pipelineLayout,
+				.renderPass = renderPass,
+		};
+
+		core->device().createGraphicsPipelines(nullptr, 1, &pipelineCreateInfo, nullptr, &_pipeline);
+		core->device().destroyShaderModule(vertShader);
+		core->device().destroyShaderModule(fragShader);
+
+		_buffer.SetIndexBufferSize(sizeof(int) * 6);
+		_buffer.SetVertexBufferSize(sizeof(ImVec2) * 4);
+
+		int indices[] {
+			0, 1, 2,
+			0, 2, 3
+		};
+
+		ImVec2 vertices[] {
+			ImVec2{-0.5, -0.5},
+			ImVec2{-0.5, +0.5},
+			ImVec2{+0.5, +0.5},
+			ImVec2{+0.5, -0.5}
+		};
+
+		_buffer.SetIndexBufferData(indices, 0, 0, sizeof(int) * 6);
+		_buffer.SetVertexBufferData(vertices, 0, 0, sizeof(ImVec2) * 4);
+	}
+
+	void draw(vk::CommandBuffer cmd) {
+		vk::DeviceSize offset{0};
+
+		vk::Buffer vertexBuffers[] {
+			_buffer.VertexBuffer
+		};
+
+		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
+		cmd.bindVertexBuffers(0, 1, vertexBuffers, &offset);
+		cmd.bindIndexBuffer(_buffer.IndexBuffer, 0, vk::IndexType::eUint32);
+
+		cmd.drawIndexed(6, 1, 0, 0, 0);
+	}
+
+	void terminate() {
+		_buffer.destroy();
+	}
+};
+
 struct Application {
-	WindowGLFW _window;
-	RenderSystem* Core;
-	Console _console{};
-	ResourcePack resourcePack{"assets"};
+	RenderSystem* core = RenderSystem::Get();
+
+	WindowGLFW window;
+	Console console{};
+	ResourceManager resourceManager{"assets"};
+
+	vk::DescriptorPool _descriptorPool;
+
+	Renderer _renderer;
 
 	Application() {
-		_window.create(1280, 720, "Vulkan");
-
-		Core = RenderSystem::Get();
-		Core->initialize(_window._window);
-
-		glfwSetWindowUserPointer(_window._window, this);
-		glfwSetWindowSizeCallback(_window._window, [](GLFWwindow *window, int width, int height) {
+		window.create(1280, 720, "Vulkan");
+		glfwSetWindowUserPointer(window.handle(), this);
+		glfwSetWindowSizeCallback(window.handle(), [](GLFWwindow *window, int width, int height) {
 			static_cast<Application*>(glfwGetWindowUserPointer(window))->handleWindowResize(width, height);
 		});
-		glfwSetFramebufferSizeCallback(_window._window, [](GLFWwindow *window, int width, int height) {
+		glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow *window, int width, int height) {
 			static_cast<Application*>(glfwGetWindowUserPointer(window))->handleFramebufferResize(width, height);
 		});
-		glfwSetWindowIconifyCallback(_window._window, [](GLFWwindow *window, int iconified) {
+		glfwSetWindowIconifyCallback(window.handle(), [](GLFWwindow *window, int iconified) {
 			static_cast<Application*>(glfwGetWindowUserPointer(window))->handleIconify(iconified);
 		});
-		glfwSetKeyCallback(_window._window, [](GLFWwindow *window, int key, int scancode, int action, int mods) {
+		glfwSetKeyCallback(window.handle(), [](GLFWwindow *window, int key, int scancode, int action, int mods) {
 			static_cast<Application *>(glfwGetWindowUserPointer(window))->keyCallback(key, scancode, action, mods);
 		});
-		glfwSetMouseButtonCallback(_window._window, [](GLFWwindow *window, int mouseButton, int action, int mods) {
+		glfwSetMouseButtonCallback(window.handle(), [](GLFWwindow *window, int mouseButton, int action, int mods) {
 			static_cast<Application *>(glfwGetWindowUserPointer(window))->mouseButtonCallback(mouseButton, action, mods);
 		});
-		glfwSetCursorPosCallback(_window._window, [](GLFWwindow *window, double xpos, double ypos) {
+		glfwSetCursorPosCallback(window.handle(), [](GLFWwindow *window, double xpos, double ypos) {
 			static_cast<Application *>(glfwGetWindowUserPointer(window))->cursorPosCallback(xpos, ypos);
 		});
-		glfwSetScrollCallback(_window._window, [](GLFWwindow *window, double xoffset, double yoffset) {
+		glfwSetScrollCallback(window.handle(), [](GLFWwindow *window, double xoffset, double yoffset) {
 			static_cast<Application *>(glfwGetWindowUserPointer(window))->scrollCallback(xoffset, yoffset);
 		});
-		glfwSetCharCallback(_window._window, [](GLFWwindow* window, unsigned int c) {
+		glfwSetCharCallback(window.handle(), [](GLFWwindow* window, unsigned int c) {
 			static_cast<Application *>(glfwGetWindowUserPointer(window))->charCallback(c);
 		});
 
-		_depthFormat = Core->getSupportedDepthFormat();
+		core->initialize(window.handle());
+
+		_depthFormat = core->getSupportedDepthFormat();
 
 		createSwapchain();
 		createRenderPass();
 		createSyncObjects();
 		createFrameObjects();
 
-		_gui.initialize(_window._window, _renderPass, _frameCount);
+		vk::DescriptorPoolSize pool_sizes[] = {
+				{vk::DescriptorType::eSampler, 1000},
+				{vk::DescriptorType::eCombinedImageSampler, 1000},
+				{vk::DescriptorType::eSampledImage, 1000},
+				{vk::DescriptorType::eStorageImage, 1000},
+				{vk::DescriptorType::eUniformTexelBuffer, 1000},
+				{vk::DescriptorType::eStorageTexelBuffer, 1000},
+				{vk::DescriptorType::eUniformBuffer, 1000},
+				{vk::DescriptorType::eStorageBuffer, 1000},
+				{vk::DescriptorType::eUniformBufferDynamic, 1000},
+				{vk::DescriptorType::eStorageBufferDynamic, 1000},
+				{vk::DescriptorType::eInputAttachment, 1000}
+		};
+
+		vk::DescriptorPoolCreateInfo descriptor_pool_create_info {
+			.maxSets = 1000,
+			.poolSizeCount = std::size(pool_sizes),
+			.pPoolSizes = pool_sizes
+		};
+		_descriptorPool = core->device().createDescriptorPool(descriptor_pool_create_info, nullptr);
+
+		_renderer.initialize(window, resourceManager, _descriptorPool, _renderPass);
+		_gui.initialize(window.handle(), _renderPass, _frameCount);
 	}
 
 	~Application() {
-		Core->device().waitIdle();
+		core->device().waitIdle();
 
+		_renderer.terminate();
 		_gui.terminate();
 
 		for (uint32_t i = 0; i < _frameCount; i++) {
-			Core->device().destroyFramebuffer(_framebuffers[i], nullptr);
-			Core->device().destroyImageView(_swapchainImageViews[i], nullptr);
-			Core->device().destroyImageView(_depthImageViews[i]);
+			core->device().destroyFramebuffer(_framebuffers[i], nullptr);
+			core->device().destroyImageView(_swapchainImageViews[i], nullptr);
+			core->device().destroyImageView(_depthImageViews[i]);
 			_depthImages[i].destroy();
 
 			_commandPools[i].free(_commandBuffers[i]);
 			_commandPools[i].destroy();
 
-			Core->device().destroyFence(_fences[i], nullptr);
-			Core->device().destroySemaphore(_imageAcquiredSemaphore[i]);
-			Core->device().destroySemaphore(_renderCompleteSemaphore[i]);
+			core->device().destroyFence(_fences[i], nullptr);
+			core->device().destroySemaphore(_imageAcquiredSemaphore[i]);
+			core->device().destroySemaphore(_renderCompleteSemaphore[i]);
 		}
 
-		Core->device().destroyRenderPass(_renderPass, nullptr);
-		Core->device().destroySwapchainKHR(_swapchain, nullptr);
-		Core->terminate();
+		core->device().destroyRenderPass(_renderPass, nullptr);
+		core->device().destroySwapchainKHR(_swapchain, nullptr);
+		core->terminate();
 
-		_window.destroy();
+		window.destroy();
 	}
 
 	void run() {
-		while (!glfwWindowShouldClose(_window._window)) {
+		while (!glfwWindowShouldClose(window.handle())) {
 			glfwPollEvents();
 
 			_gui.begin();
-			_console.Draw();
+			console.Draw();
 			_gui.end();
 
 			auto cmd = begin();
+			_renderer.draw(cmd);
 			_gui.draw(cmd);
 			end();
 		}
@@ -220,9 +463,9 @@ private:
 	}
 
 	inline void createSwapchain() {
-		auto capabilities = Core->physicalDevice().getSurfaceCapabilitiesKHR(Core->surface());
-		auto surfaceFormats = Core->physicalDevice().getSurfaceFormatsKHR(Core->surface());
-		auto presentModes = Core->physicalDevice().getSurfacePresentModesKHR(Core->surface());
+		auto capabilities = core->physicalDevice().getSurfaceCapabilitiesKHR(core->surface());
+		auto surfaceFormats = core->physicalDevice().getSurfaceFormatsKHR(core->surface());
+		auto presentModes = core->physicalDevice().getSurfacePresentModesKHR(core->surface());
 
 		vk::Format request_formats[] {
 				vk::Format::eB8G8R8A8Unorm,
@@ -248,7 +491,7 @@ private:
 		}
 
 		vk::SwapchainCreateInfoKHR swapchainCreateInfo {
-			.surface = Core->surface(),
+			.surface = core->surface(),
 			.minImageCount = static_cast<uint32_t>(min_image_count),
 			.imageFormat = _surface_format.format,
 			.imageColorSpace = _surface_format.colorSpace,
@@ -263,18 +506,18 @@ private:
 		};
 
 		uint32_t queue_family_indices[] = {
-				Core->graphicsFamily(),
-				Core->presentFamily()
+				core->graphicsFamily(),
+				core->presentFamily()
 		};
 
-		if (Core->graphicsFamily() != Core->presentFamily()) {
+		if (core->graphicsFamily() != core->presentFamily()) {
 			swapchainCreateInfo.imageSharingMode = vk::SharingMode::eConcurrent;
 			swapchainCreateInfo.queueFamilyIndexCount = 2;
 			swapchainCreateInfo.pQueueFamilyIndices = queue_family_indices;
 		}
 
-		_swapchain = Core->device().createSwapchainKHR(swapchainCreateInfo, nullptr);
-		_swapchainImages = Core->device().getSwapchainImagesKHR(_swapchain);
+		_swapchain = core->device().createSwapchainKHR(swapchainCreateInfo, nullptr);
+		_swapchainImages = core->device().getSwapchainImagesKHR(_swapchain);
 		_frameCount = _swapchainImages.size();
 	}
 
@@ -341,7 +584,7 @@ private:
 				.dependencyCount = 1,
 				.pDependencies = &dependency,
 		};
-		_renderPass = Core->device().createRenderPass(render_pass_create_info, nullptr);
+		_renderPass = core->device().createRenderPass(render_pass_create_info, nullptr);
 	}
 
 	void createSyncObjects() {
@@ -350,9 +593,9 @@ private:
 		_renderCompleteSemaphore.resize(_frameCount);
 
 		for (uint32_t i = 0; i < _frameCount; i++) {
-			_fences[i] = Core->device().createFence({.flags = vk::FenceCreateFlagBits::eSignaled});
-			_imageAcquiredSemaphore[i] = Core->device().createSemaphore({}, nullptr);
-			_renderCompleteSemaphore[i] = Core->device().createSemaphore({}, nullptr);
+			_fences[i] = core->device().createFence({.flags = vk::FenceCreateFlagBits::eSignaled});
+			_imageAcquiredSemaphore[i] = core->device().createSemaphore({}, nullptr);
+			_renderCompleteSemaphore[i] = core->device().createSemaphore({}, nullptr);
 		}
 	}
 
@@ -393,12 +636,12 @@ private:
 		};
 		for (uint32_t i = 0; i < _frameCount; i++) {
 			swapchainImageViewCreateInfo.image = _swapchainImages[i];
-			_swapchainImageViews[i] = Core->device().createImageView(swapchainImageViewCreateInfo, nullptr);
+			_swapchainImageViews[i] = core->device().createImageView(swapchainImageViewCreateInfo, nullptr);
 
 			_depthImages[i] = Image::create(depthImageCreateInfo, {.usage = VMA_MEMORY_USAGE_GPU_ONLY});
 
 			depthImageViewCreateInfo.image = _depthImages[i];
-			_depthImageViews[i] = Core->device().createImageView(depthImageViewCreateInfo, nullptr);
+			_depthImageViews[i] = core->device().createImageView(depthImageViewCreateInfo, nullptr);
 
 			vk::ImageView attachments[]{
 					_swapchainImageViews[i],
@@ -414,8 +657,8 @@ private:
 					.layers = 1
 			};
 
-			_framebuffers[i] = Core->device().createFramebuffer(framebuffer_create_info, nullptr);
-			_commandPools[i] = CommandPool::create(Core->graphicsFamily(), vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
+			_framebuffers[i] = core->device().createFramebuffer(framebuffer_create_info, nullptr);
+			_commandPools[i] = CommandPool::create(core->graphicsFamily(), vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
 			_commandBuffers[i] = _commandPools[i].allocate(vk::CommandBufferLevel::ePrimary);
 		}
 	}
@@ -424,17 +667,17 @@ private:
 		static constinit auto timeout = std::numeric_limits<uint64_t>::max();
 		auto semaphore = _imageAcquiredSemaphore[_semaphoreIndex];
 
-		Core->device().acquireNextImageKHR(_swapchain, timeout, semaphore, nullptr, &_frameIndex);
-		Core->device().waitForFences(1, &_fences[_frameIndex], true, timeout);
-		Core->device().resetFences(1, &_fences[_frameIndex]);
+		core->device().acquireNextImageKHR(_swapchain, timeout, semaphore, nullptr, &_frameIndex);
+		core->device().waitForFences(1, &_fences[_frameIndex], true, timeout);
+		core->device().resetFences(1, &_fences[_frameIndex]);
 
 		_commandBuffers[_frameIndex].begin({ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 
 		vk::Rect2D render_area{
 			.offset = {0, 0},
 			.extent = {
-				uint32_t(_window.width()),
-				uint32_t(_window.height())
+				uint32_t(window.width()),
+				uint32_t(window.height())
 			}
 		};
 
@@ -476,7 +719,7 @@ private:
 			.pSignalSemaphores = &render_complete_semaphore
 		};
 
-		Core->graphicsQueue().submit(1, &submitInfo, _fences[_frameIndex]);
+		core->graphicsQueue().submit(1, &submitInfo, _fences[_frameIndex]);
 
 		vk::PresentInfoKHR presentInfo {
 			.waitSemaphoreCount = 1,
@@ -485,7 +728,7 @@ private:
 			.pSwapchains = &_swapchain,
 			.pImageIndices = &_frameIndex
 		};
-		Core->presentQueue().presentKHR(presentInfo);
+		core->presentQueue().presentKHR(presentInfo);
 
 		_semaphoreIndex = (_semaphoreIndex + 1) % _frameCount;
 	}

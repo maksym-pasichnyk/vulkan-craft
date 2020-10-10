@@ -20,8 +20,8 @@ struct WindowGLFW {
 
 	int width() const { return _width; }
 	int height() const { return _height; }
-
-//private:
+	GLFWwindow* handle() { return _window; }
+private:
 	GLFWwindow* _window{nullptr};
 	int _width{0}, _height{0};
 };

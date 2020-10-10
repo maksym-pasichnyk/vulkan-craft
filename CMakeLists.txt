@@ -24,7 +24,7 @@ function(add_shaders TARGET)
         set(SPIRV "${SOURCE_FILE}.spv")
         add_custom_command(
                 OUTPUT ${SPIRV}
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/shaders/"
+#                COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/shaders/"
                 COMMAND glslc ${SOURCE_FILE} -o ${SPIRV}
                 DEPENDS ${SOURCE_FILE}
                 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
@@ -33,6 +33,11 @@ function(add_shaders TARGET)
 
     add_custom_target(${TARGET} DEPENDS ${SPIRV_BINARY_FILES})
 endfunction()
+
+add_shaders(shaders
+    assets/default.frag
+    assets/default.vert
+)
 
 add_library(imgui STATIC
     imgui/imconfig.h
@@ -44,7 +49,8 @@ add_library(imgui STATIC
     imgui/imgui_widgets.cpp
     imgui/imstb_rectpack.h
     imgui/imstb_textedit.h
-    imgui/imstb_truetype.h ResourcePack.hpp)
+    imgui/imstb_truetype.h
+        ResourceManager.hpp)
 
 add_executable(vcraft
     main.cpp
@@ -65,8 +71,10 @@ add_executable(vcraft
     Image.hpp
     Texture.hpp
     DescriptorPool.hpp
-    Input.hpp WindowGLFW.hpp)
+    Input.hpp
+    WindowGLFW.hpp)
 
 target_link_libraries(vcraft glfw vulkan imgui)
+add_dependencies(vcraft shaders)
 
 execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/assets ${CMAKE_BINARY_DIR}/assets)

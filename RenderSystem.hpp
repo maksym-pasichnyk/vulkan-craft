@@ -220,18 +220,6 @@ public:
 	}
 
 public:
-//	int width() {
-//		return _width;
-//	}
-//
-//	int height() {
-//		return _height;
-//	}
-//
-//	GLFWwindow* window() {
-//		return _window;
-//	}
-
 	vk::Instance instance() {
 		return _instance;
 	}
@@ -269,9 +257,6 @@ public:
 	}
 
 private:
-//	GLFWwindow* _window{nullptr};
-//	int _width{0}, _height{0};
-
 	vk::Instance _instance;
 	vk::PhysicalDevice _physicalDevice;
 	vk::Device _device;
