@@ -44,7 +44,7 @@ add_library(imgui STATIC
     imgui/imgui_widgets.cpp
     imgui/imstb_rectpack.h
     imgui/imstb_textedit.h
-    imgui/imstb_truetype.h)
+    imgui/imstb_truetype.h ResourcePack.hpp)
 
 add_executable(vcraft
     main.cpp
@@ -60,11 +60,13 @@ add_executable(vcraft
     mem_alloc.cpp
     RenderSystem.hpp
     CommandPool.hpp
-        RenderBuffer.hpp
+    RenderBuffer.hpp
     Buffer.hpp
     Image.hpp
     Texture.hpp
     DescriptorPool.hpp
-    Input.hpp)
+    Input.hpp WindowGLFW.hpp)
 
 target_link_libraries(vcraft glfw vulkan imgui)
+
+execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/assets ${CMAKE_BINARY_DIR}/assets)
