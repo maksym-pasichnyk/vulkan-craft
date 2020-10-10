@@ -7,7 +7,7 @@
 #include "RenderBuffer.hpp"
 
 struct GUI {
-	void initialize(vk::RenderPass renderPass, int frameCount);
+	void initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCount);
 
 	void terminate();
 
@@ -40,6 +40,8 @@ private:
 	void updateGamepads();
 
 private:
+	GLFWwindow* _window;
+
 	vk::DescriptorSetLayout _fontDescriptorSetLayout;
 	vk::DescriptorSet _fontDescriptor;
 

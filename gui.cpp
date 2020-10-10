@@ -83,7 +83,9 @@ namespace {
 	};
 }
 
-void GUI::initialize(vk::RenderPass renderPass, int frameCount) {
+void GUI::initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCount) {
+	_window = window;
+
     IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 
@@ -123,7 +125,7 @@ void GUI::initialize(vk::RenderPass renderPass, int frameCount) {
 
     io.SetClipboardTextFn = SetClipboardText;
     io.GetClipboardTextFn = GetClipboardText;
-    io.ClipboardUserData = RenderSystem::Get()->window();
+//    io.ClipboardUserData = RenderSystem::Get()->window();
 
     _mouseCursors[ImGuiMouseCursor_Arrow] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
     _mouseCursors[ImGuiMouseCursor_TextInput] = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
@@ -434,8 +436,8 @@ void GUI::begin() {
 	// Setup display size (every frame to accommodate for window resizing)
 	int w, h;
 	int display_w, display_h;
-	glfwGetWindowSize(RenderSystem::Get()->window(), &w, &h);
-	glfwGetFramebufferSize(RenderSystem::Get()->window(), &display_w, &display_h);
+	glfwGetWindowSize(_window, &w, &h);
+	glfwGetFramebufferSize(_window, &display_w, &display_h);
 	io.DisplaySize = ImVec2((float) w, (float) h);
 	if (w > 0 && h > 0)
 		io.DisplayFramebufferScale = ImVec2((float) display_w / w, (float) display_h / h);
@@ -577,7 +579,7 @@ void GUI::updateMousePosAndButtons() {
 	ImGuiIO &io = ImGui::GetIO();
 	for (int i = 0; i < IM_ARRAYSIZE(io.MouseDown); i++) {
 		// If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
-		io.MouseDown[i] = _mouseJustPressed[i] || glfwGetMouseButton(RenderSystem::Get()->window(), i) != 0;
+		io.MouseDown[i] = _mouseJustPressed[i] || glfwGetMouseButton(_window, i) != 0;
 		_mouseJustPressed[i] = false;
 	}
 
@@ -585,14 +587,14 @@ void GUI::updateMousePosAndButtons() {
 	const ImVec2 mouse_pos_backup = io.MousePos;
 	io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
 
-	const bool focused = glfwGetWindowAttrib(RenderSystem::Get()->window(), GLFW_FOCUSED) != 0;
+	const bool focused = glfwGetWindowAttrib(_window, GLFW_FOCUSED) != 0;
 
 	if (focused) {
 		if (io.WantSetMousePos) {
-			glfwSetCursorPos(RenderSystem::Get()->window(), (double) mouse_pos_backup.x, (double) mouse_pos_backup.y);
+			glfwSetCursorPos(_window, (double) mouse_pos_backup.x, (double) mouse_pos_backup.y);
 		} else {
 			double mouse_x, mouse_y;
-			glfwGetCursorPos(RenderSystem::Get()->window(), &mouse_x, &mouse_y);
+			glfwGetCursorPos(_window, &mouse_x, &mouse_y);
 			io.MousePos = ImVec2((float) mouse_x, (float) mouse_y);
 		}
 	}
@@ -600,18 +602,18 @@ void GUI::updateMousePosAndButtons() {
 
 void GUI::updateMouseCursor() {
 	ImGuiIO &io = ImGui::GetIO();
-	if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || glfwGetInputMode(RenderSystem::Get()->window(), GLFW_CURSOR) == GLFW_CURSOR_DISABLED)
+	if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || glfwGetInputMode(_window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED)
 		return;
 
 	ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();
 	if (imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor) {
 		// Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
-		glfwSetInputMode(RenderSystem::Get()->window(), GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+		glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 	} else {
 		// Show OS mouse cursor
 		// FIXME-PLATFORM: Unfocused windows seems to fail changing the mouse cursor with GLFW 3.2, but 3.3 works here.
-		glfwSetCursor(RenderSystem::Get()->window(), _mouseCursors[imgui_cursor] ? _mouseCursors[imgui_cursor] : _mouseCursors[ImGuiMouseCursor_Arrow]);
-		glfwSetInputMode(RenderSystem::Get()->window(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		glfwSetCursor(_window, _mouseCursors[imgui_cursor] ? _mouseCursors[imgui_cursor] : _mouseCursors[ImGuiMouseCursor_Arrow]);
+		glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 	}
 }
 

@@ -41,15 +41,7 @@ struct RenderSystem {
 		return std::vector<const char *>(extensions, extensions + count);
 	}
 
-	void initialize() {
-		glfwInit();
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
-		_window = glfwCreateWindow(1280, 720, "Vulkan", NULL, NULL);
-
-		glfwGetFramebufferSize(_window, &_width, &_height);
-
+	void initialize(GLFWwindow* window) {
 		auto extensions = getRequiredExtension();
 		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
@@ -74,7 +66,7 @@ struct RenderSystem {
 
 		createDebugUtilsMessengerEXT(_instance, &debugCreateInfo, nullptr, &debugUtilsMessenger);
 
-		glfwCreateWindowSurface(_instance, _window, nullptr, &_surface);
+		glfwCreateWindowSurface(_instance, window, nullptr, &_surface);
 
 		selectPhysicalDevice();
 
@@ -129,10 +121,9 @@ struct RenderSystem {
 		vmaDestroyAllocator(_allocator);
 
 		_device.destroy();
-		_instance.destroy();
 
-		glfwDestroyWindow(_window);
-		glfwTerminate();
+		_instance.destroySurfaceKHR(_surface);
+		_instance.destroy();
 	}
 
 private:
@@ -229,17 +220,17 @@ public:
 	}
 
 public:
-	int width() {
-		return _width;
-	}
-
-	int height() {
-		return _height;
-	}
-
-	GLFWwindow* window() {
-		return _window;
-	}
+//	int width() {
+//		return _width;
+//	}
+//
+//	int height() {
+//		return _height;
+//	}
+//
+//	GLFWwindow* window() {
+//		return _window;
+//	}
 
 	vk::Instance instance() {
 		return _instance;
@@ -278,8 +269,8 @@ public:
 	}
 
 private:
-	GLFWwindow* _window{nullptr};
-	int _width{0}, _height{0};
+//	GLFWwindow* _window{nullptr};
+//	int _width{0}, _height{0};
 
 	vk::Instance _instance;
 	vk::PhysicalDevice _physicalDevice;
