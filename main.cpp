@@ -5,16 +5,16 @@
 
 #include <glm/glm.hpp>
 
-#include <iostream>
-#include <bitset>
 #include <ResourceManager.hpp>
-#include "console.hpp"
+#include <glm/ext.hpp>
 
 #include "RenderSystem.hpp"
 #include "Image.hpp"
 
 #include "gui.hpp"
-#include "WindowGLFW.hpp"
+#include "Window.hpp"
+#include "Input.hpp"
+#include "Clock.hpp"
 
 struct Vertex {
 	glm::vec3 pos;
@@ -38,6 +38,26 @@ uint32_t indices[] {
 	0, 1, 2, 2, 1, 3,
 	4, 5, 6, 6, 5, 7
 };
+
+struct CameraUniform {
+	glm::mat4 camera;
+};
+
+inline static glm::mat4 PerspectiveProjectionMatrix(float aspect_ratio, float field_of_view, float near_plane, float far_plane) {
+	const float tanHalfFovy = glm::tan(field_of_view * 0.5f);
+
+	const float a = 1.0f / (aspect_ratio * tanHalfFovy);
+	const float b = -1.0f / tanHalfFovy;
+	const float c = far_plane / (far_plane - near_plane);
+	const float d = (near_plane * far_plane) / (near_plane - far_plane);
+
+	return {
+		a, 0, 0, 0,
+		0, b, 0, 0,
+		0, 0, c, 1,
+		0, 0, d, 0
+	};
+}
 
 struct CommandPool {
 	vk::CommandPool _commandPool;
@@ -80,11 +100,24 @@ struct Renderer {
 	vk::Pipeline _pipeline;
 //	vk::Sampler _sampler;
 
+	Input* pInput;
 	RenderBuffer _buffer;
 
-	void initialize(WindowGLFW& window, ResourceManager& rm, vk::DescriptorPool descriptorPool, vk::RenderPass renderPass) {
+	glm::mat4 _projection;
+	glm::vec3 _cameraPosition{-1, -1, -2};
+
+	void initialize(Window& window, Input& input, ResourceManager& rm, vk::DescriptorPool descriptorPool, vk::RenderPass renderPass) {
+		pInput = &input;
+
 		_width = window.width();
 		_height = window.height();
+
+		_projection = PerspectiveProjectionMatrix(
+				float(_width) / float(_height),
+				glm::radians(60.0f),
+				0.1f,
+				1000.0f
+		);
 
 		vk::ShaderModule vertShader{nullptr};
 		rm.loadFile("default.vert.spv", [&](std::span<char> bytes) {
@@ -131,15 +164,15 @@ struct Renderer {
 //			_descriptorSetLayout = core->device().createDescriptorSetLayout(descriptor_set_layout_create_info, nullptr);
 //			_fontDescriptor = vkx::allocate(_descriptorPool, _descriptorSetLayout);
 
-//			vk::PushConstantRange pushConstant {
-//					vk::ShaderStageFlagBits::eVertex, 0, sizeof(float[4])
-//			};
+		vk::PushConstantRange constant {
+			vk::ShaderStageFlagBits::eVertex, 0, sizeof(CameraUniform)
+		};
 
 		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{
 				.setLayoutCount = /*1*/0,
 				.pSetLayouts = nullptr,
-				.pushConstantRangeCount = /*1*/0,
-				.pPushConstantRanges = nullptr
+				.pushConstantRangeCount = 1,
+				.pPushConstantRanges = &constant
 		};
 		_pipelineLayout = core->device().createPipelineLayout(pipelineLayoutCreateInfo, nullptr);
 
@@ -248,7 +281,7 @@ struct Renderer {
 		core->device().destroyShaderModule(vertShader);
 		core->device().destroyShaderModule(fragShader);
 
-		_buffer.SetIndexBufferSize(sizeof(int) * 6);
+		_buffer.SetIndexBufferSize(sizeof(int) * 12);
 		_buffer.SetVertexBufferSize(sizeof(ImVec2) * 4);
 
 		int indices[] {
@@ -268,13 +301,31 @@ struct Renderer {
 	}
 
 	void draw(vk::CommandBuffer cmd) {
+		if (pInput->IsKeyPressed(Key::W)) {
+			_cameraPosition.y += 0.1f;
+		}
+		if (pInput->IsKeyPressed(Key::S)) {
+			_cameraPosition.y -= 0.1f;
+		}
+		if (pInput->IsKeyPressed(Key::A)) {
+			_cameraPosition.x -= 0.1f;
+		}
+		if (pInput->IsKeyPressed(Key::D)) {
+			_cameraPosition.x += 0.1f;
+		}
+
 		vk::DeviceSize offset{0};
 
 		vk::Buffer vertexBuffers[] {
 			_buffer.VertexBuffer
 		};
 
+		CameraUniform uniform {
+			.camera = glm::translate(_projection, -_cameraPosition)
+		};
+
 		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
+		cmd.pushConstants(_pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(CameraUniform), &uniform);
 		cmd.bindVertexBuffers(0, 1, vertexBuffers, &offset);
 		cmd.bindIndexBuffer(_buffer.IndexBuffer, 0, vk::IndexType::eUint32);
 
@@ -282,6 +333,8 @@ struct Renderer {
 	}
 
 	void terminate() {
+		core->device().destroyPipelineLayout(_pipelineLayout);
+		core->device().destroyPipeline(_pipeline);
 		_buffer.destroy();
 	}
 };
@@ -289,16 +342,19 @@ struct Renderer {
 struct Application {
 	RenderSystem* core = RenderSystem::Get();
 
-	WindowGLFW window;
-	Console console{};
+	Window window;
+	Input input;
+	Clock clock;
+
 	ResourceManager resourceManager{"assets"};
 
 	vk::DescriptorPool _descriptorPool;
-
 	Renderer _renderer;
 
 	Application() {
 		window.create(1280, 720, "Vulkan");
+		input.SetWindow(window.handle());
+
 		glfwSetWindowUserPointer(window.handle(), this);
 		glfwSetWindowSizeCallback(window.handle(), [](GLFWwindow *window, int width, int height) {
 			static_cast<Application*>(glfwGetWindowUserPointer(window))->handleWindowResize(width, height);
@@ -355,7 +411,7 @@ struct Application {
 		};
 		_descriptorPool = core->device().createDescriptorPool(descriptor_pool_create_info, nullptr);
 
-		_renderer.initialize(window, resourceManager, _descriptorPool, _renderPass);
+		_renderer.initialize(window, input, resourceManager, _descriptorPool, _renderPass);
 		_gui.initialize(window.handle(), _renderPass, _frameCount);
 	}
 
@@ -387,17 +443,20 @@ struct Application {
 	}
 
 	void run() {
+		clock.reset();
 		while (!glfwWindowShouldClose(window.handle())) {
-			glfwPollEvents();
+			clock.update();
+			input.update();
 
 			_gui.begin();
-			console.Draw();
 			_gui.end();
 
 			auto cmd = begin();
 			_renderer.draw(cmd);
 			_gui.draw(cmd);
 			end();
+
+			glfwPollEvents();
 		}
 	}
 
@@ -734,24 +793,24 @@ private:
 	}
 
 private:
-	void handleWindowResize(int width, int height) {
-	}
+	void handleWindowResize(int width, int height) {}
 
 	void handleFramebufferResize(int width, int height) {}
 
-	void handleIconify(int iconified) {
-
-	}
+	void handleIconify(int iconified) {}
 
 	void keyCallback(int key, int scancode, int action, int mods) {
 		_gui.keyCallback(key, scancode, action, mods);
+		input.handleKeyInput(key, scancode, action, mods);
 	}
 
 	void mouseButtonCallback(int mouseButton, int action, int mods) {
 		_gui.mouseButtonCallback(mouseButton, action, mods);
+		input.handleMouseButton(mouseButton, action, mods);
 	}
 
 	void cursorPosCallback(double xpos, double ypos) {
+		input.handleMousePosition(xpos, ypos);
 	}
 
 	void scrollCallback(double xoffset, double yoffset) {

@@ -2,7 +2,7 @@
 
 #include <GLFW/glfw3.h>
 
-struct WindowGLFW {
+struct Window {
 	void create(int width, int height, const char* title) {
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);

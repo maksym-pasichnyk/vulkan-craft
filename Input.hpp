@@ -173,6 +173,10 @@ inline constexpr KeyState &operator&=(KeyState &a, KeyState b) {
 }
 
 struct Input {
+	void SetWindow(GLFWwindow* window) {
+		_window = window;
+	}
+
 	void update() {
 		_delta[0] = 0;
 		_delta[1] = 0;
@@ -181,7 +185,7 @@ struct Input {
 
 		for (int i = 0; i < std::size(_mouseDown); i++) {
 			_mouseDownPrev[i] = _mouseDown[i];
-			_mouseDown[i] = glfwGetMouseButton(RenderSystem::Get()->window(), i) != 0;
+			_mouseDown[i] = glfwGetMouseButton(_window, i) != 0;
 		}
 	}
 
@@ -240,17 +244,17 @@ struct Input {
 
 		_cursorState = state;
 		if (state == CursorState::Normal) {
-			glfwSetInputMode(RenderSystem::Get()->window(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+			glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
 			double xpos, ypos;
-			glfwGetCursorPos(RenderSystem::Get()->window(), &xpos, &ypos);
+			glfwGetCursorPos(_window, &xpos, &ypos);
 			_mousePosition[0] = float(xpos);
 			_mousePosition[1] = float(ypos);
 			_delta[0] = 0;
 			_delta[1] = 0;
 		} else if (state == CursorState::Locked) {
 			int width, height;
-			glfwGetWindowSize(RenderSystem::Get()->window(), &width, &height);
+			glfwGetWindowSize(_window, &width, &height);
 
 			auto xpos = float(width) * 0.5f;
 			auto ypos = float(height) * 0.5f;
@@ -259,8 +263,8 @@ struct Input {
 			_delta[0] = 0;
 			_delta[1] = 0;
 
-			glfwSetCursorPos(RenderSystem::Get()->window(), xpos, ypos);
-			glfwSetInputMode(RenderSystem::Get()->window(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			glfwSetCursorPos(_window, xpos, ypos);
+			glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		}
 	}
 
@@ -273,6 +277,8 @@ struct Input {
 	}
 
 private:
+	GLFWwindow* _window;
+
 	CursorState _cursorState;
 
 	bool _mouseDown[5]{};

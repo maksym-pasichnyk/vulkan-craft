@@ -49,8 +49,7 @@ add_library(imgui STATIC
     imgui/imgui_widgets.cpp
     imgui/imstb_rectpack.h
     imgui/imstb_textedit.h
-    imgui/imstb_truetype.h
-        ResourceManager.hpp)
+    imgui/imstb_truetype.h)
 
 add_executable(vcraft
     main.cpp
@@ -67,12 +66,14 @@ add_executable(vcraft
     RenderSystem.hpp
     CommandPool.hpp
     RenderBuffer.hpp
+    ResourceManager.hpp
     Buffer.hpp
     Image.hpp
     Texture.hpp
     DescriptorPool.hpp
-    Input.hpp
-    WindowGLFW.hpp)
+        Input.hpp
+        Window.hpp
+        Clock.hpp)
 
 target_link_libraries(vcraft glfw vulkan imgui)
 add_dependencies(vcraft shaders)
