@@ -3,8 +3,19 @@
 
 layout(location = 0) out vec4 outColor;
 
-layout(location = 0) in vec3 color;
+layout(location = 0) in vec3 vertex;
+layout(location = 1) in vec3 normal;
 
 void main() {
-    outColor = vec4(color, 1.0);
+    vec3 LightDirection = vec3(0.25f, -1.0f, 0.5f);
+    vec3 lightDir = normalize(-LightDirection);
+
+    float diff = max(dot(normal, lightDir), 0.0);
+
+    vec3 diffuse = vec3(1, 1, 1) * diff;
+    vec3 ambient = vec3(0.5f, 0.5f, 0.5f);
+
+    vec3 result = diffuse + ambient;
+
+    outColor = vec4(result, 1.0);
 }

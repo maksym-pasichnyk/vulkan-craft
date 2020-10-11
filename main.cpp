@@ -77,9 +77,16 @@ struct AABB {
 	float max_z;
 };
 
+struct Vertex {
+	glm::vec3 position;
+	glm::vec3 normal;
+
+	Vertex(float x, float y, float z, float nx, float ny, float nz) : position{x, y, z}, normal{nx, ny, nz} {}
+};
+
 struct VertexBuilder {
 	std::vector<int> indices;
-	std::vector<glm::vec3> vertices;
+	std::vector<Vertex> vertices;
 
 	void addQuad(int a1, int b1, int c1, int a2, int b2, int c2) {
 		int idx = vertices.size();
@@ -95,52 +102,240 @@ struct VertexBuilder {
 		indices.push_back(idx + c2);
 	}
 
-	void addCube(AABB aabb, float x, float y, float z) {
-		const float x0 = x + aabb.min_x;
-		const float y0 = y + aabb.min_y;
-		const float z0 = z + aabb.min_z;
+	void addCube(float ox, float oy, float oz, float sx, float sy, float sz) {
+		const float x0 = ox;
+		const float y0 = oy;
+		const float z0 = oz;
 		
-		const float x1 = x + aabb.max_x;
-		const float y1 = y + aabb.max_y;
-		const float z1 = z + aabb.max_z;
-		
-		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x0, y0, z0);
-		vertices.emplace_back(x0, y1, z0);
-		vertices.emplace_back(x1, y1, z0);
-		vertices.emplace_back(x1, y0, z0);
+		const float x1 = ox + sx;
+		const float y1 = oy + sy;
+		const float z1 = oz + sz;
 
+		// south
 		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x1, y0, z0);
-		vertices.emplace_back(x1, y1, z0);
-		vertices.emplace_back(x1, y1, z1);
-		vertices.emplace_back(x1, y0, z1);
+		vertices.emplace_back(x0, y0, z0, 0, 0, -1);
+		vertices.emplace_back(x0, y1, z0, 0, 0, -1);
+		vertices.emplace_back(x1, y1, z0, 0, 0, -1);
+		vertices.emplace_back(x1, y0, z0, 0, 0, -1);
 
+		// east
 		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x1, y0, z1);
-		vertices.emplace_back(x1, y1, z1);
-		vertices.emplace_back(x0, y1, z1);
-		vertices.emplace_back(x0, y0, z1);
+		vertices.emplace_back(x1, y0, z0, 1, 0, 0);
+		vertices.emplace_back(x1, y1, z0, 1, 0, 0);
+		vertices.emplace_back(x1, y1, z1, 1, 0, 0);
+		vertices.emplace_back(x1, y0, z1, 1, 0, 0);
 
+		// north
 		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x0, y0, z1);
-		vertices.emplace_back(x0, y1, z1);
-		vertices.emplace_back(x0, y1, z0);
-		vertices.emplace_back(x0, y0, z0);
+		vertices.emplace_back(x1, y0, z1, 0, 0, 1);
+		vertices.emplace_back(x1, y1, z1, 0, 0, 1);
+		vertices.emplace_back(x0, y1, z1, 0, 0, 1);
+		vertices.emplace_back(x0, y0, z1, 0, 0, 1);
 
+		// west
 		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x0, y1, z0);
-		vertices.emplace_back(x0, y1, z1);
-		vertices.emplace_back(x1, y1, z1);
-		vertices.emplace_back(x1, y1, z0);
+		vertices.emplace_back(x0, y0, z1, -1, 0, 0);
+		vertices.emplace_back(x0, y1, z1, -1, 0, 0);
+		vertices.emplace_back(x0, y1, z0, -1, 0, 0);
+		vertices.emplace_back(x0, y0, z0, -1, 0, 0);
 
+		// up
 		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x0, y0, z1);
-		vertices.emplace_back(x0, y0, z0);
-		vertices.emplace_back(x1, y0, z0);
-		vertices.emplace_back(x1, y0, z1);
+		vertices.emplace_back(x0, y1, z0, 0, 1, 0);
+		vertices.emplace_back(x0, y1, z1, 0, 1, 0);
+		vertices.emplace_back(x1, y1, z1, 0, 1, 0);
+		vertices.emplace_back(x1, y1, z0, 0, 1, 0);
+
+		// down
+		addQuad(0, 1, 2, 0, 2, 3);
+		vertices.emplace_back(x0, y0, z1, 0, -1, 0);
+		vertices.emplace_back(x0, y0, z0, 0, -1, 0);
+		vertices.emplace_back(x1, y0, z0, 0, -1, 0);
+		vertices.emplace_back(x1, y0, z1, 0, -1, 0);
 	}
 };
+
+struct Cube {
+	glm::vec3 origin;
+	glm::vec3 size;
+	glm::vec3 uv;
+};
+
+struct Bone {
+	std::string name;
+	glm::vec3 pivot;
+	std::vector<AABB> cubes;
+};
+
+#include "Json.hpp"
+
+constexpr std::string_view geometry_humanoid = R"({
+	"visible_bounds_width": 1,
+	"visible_bounds_height": 1,
+	"visible_bounds_offset": [ 0, 0.5, 0 ],
+	"bones": [
+		{
+			"name": "body",
+			"pivot": [ 0.0, 24.0, 0.0 ],
+			"cubes": [
+				{
+					"origin": [ -4.0, 12.0, -2.0 ],
+					"size": [ 8, 12, 4 ],
+					"uv": [ 16, 16 ]
+				}
+			]
+		},
+
+		{
+			"name": "waist",
+			"neverRender": true,
+			"pivot": [ 0.0, 12.0, 0.0 ]
+		},
+
+		{
+			"name": "head",
+			"pivot": [ 0.0, 24.0, 0.0 ],
+			"cubes": [
+				{
+					"origin": [ -4.0, 24.0, -4.0 ],
+					"size": [ 8, 8, 8 ],
+					"uv": [ 0, 0 ]
+				}
+			]
+		},
+
+		{
+			"name": "hat",
+			"pivot": [ 0.0, 24.0, 0.0 ],
+			"cubes": [
+				{
+					"origin": [ -4.0, 24.0, -4.0 ],
+					"size": [ 8, 8, 8 ],
+					"uv": [ 32, 0 ],
+					"inflate": 0.5
+				}
+			],
+			"neverRender": true
+		},
+
+		{
+			"name": "rightArm",
+			"pivot": [ -5.0, 22.0, 0.0 ],
+			"cubes": [
+				{
+					"origin": [ -8.0, 12.0, -2.0 ],
+					"size": [ 4, 12, 4 ],
+					"uv": [ 40, 16 ]
+				}
+			]
+		},
+
+		{
+			"name": "rightItem",
+			"pivot": [ -6, 15, 1 ],
+			"neverRender": true,
+			"parent": "rightArm"
+		},
+
+		{
+			"name": "leftArm",
+			"pivot": [ 5.0, 22.0, 0.0 ],
+			"cubes": [
+				{
+					"origin": [ 4.0, 12.0, -2.0 ],
+					"size": [ 4, 12, 4 ],
+					"uv": [ 40, 16 ]
+				}
+			],
+			"mirror": true
+		},
+
+		{
+			"name": "rightLeg",
+			"pivot": [ -1.9, 12.0, 0.0 ],
+			"cubes": [
+				{
+					"origin": [ -3.9, 0.0, -2.0 ],
+					"size": [ 4, 12, 4 ],
+					"uv": [ 0, 16 ]
+				}
+			]
+		},
+
+		{
+			"name": "leftLeg",
+			"pivot": [ 1.9, 12.0, 0.0 ],
+			"cubes": [
+				{
+					"origin": [ -0.1, 0.0, -2.0 ],
+					"size": [ 4, 12, 4 ],
+					"uv": [ 0, 16 ]
+				}
+			],
+			"mirror": true
+		},
+
+		{
+			"name": "helmet",
+			"pivot": [ 0.0, 24.0, 0.0 ],
+			"neverRender": true
+		},
+		{
+			"name": "rightArmArmor",
+			"pivot": [ -5.0, 22.0, 0.0 ],
+			"parent": "rightArm"
+		},
+		{
+			"name": "leftArmArmor",
+			"pivot": [ 5.0, 22.0, 0.0 ],
+			"parent": "leftArm",
+			"mirror": true
+		},
+		{
+			"name": "rightLegging",
+			"pivot": [ -1.9, 12.0, 0.0 ],
+			"parent": "rightLeg"
+		},
+		{
+			"name": "leftLegging",
+			"pivot": [ 1.9, 12.0, 0.0 ],
+			"parent": "leftLeg",
+			"mirror": true
+		},
+		{
+			"name": "rightBoot",
+			"pivot": [ -1.9, 12.0, 0.0 ],
+			"parent": "rightLeg"
+		},
+		{
+			"name": "leftBoot",
+			"pivot": [ 1.9, 12.0, 0.0 ],
+			"parent": "leftLeg",
+			"mirror": true
+		},
+		{
+			"name": "rightSock",
+			"pivot": [ -1.9, 12.0, 0.0 ],
+			"parent": "rightLeg"
+		},
+		{
+			"name": "leftSock",
+			"pivot": [ 1.9, 12.0, 0.0 ],
+			"parent": "leftLeg",
+			"mirror": true
+		},
+		{
+			"name": "bodyArmor",
+			"pivot": [ 0.0, 24.0, 0.0 ],
+			"parent": "body"
+		},
+		{
+			"name": "belt",
+			"pivot": [ 0.0, 24.0, 0.0 ],
+			"parent": "body"
+		}
+	]
+})";
 
 struct Renderer {
 	RenderSystem* core = RenderSystem::Get();
@@ -157,7 +352,7 @@ struct Renderer {
 	VertexBuilder _builder;
 
 	glm::mat4 _projection;
-	glm::vec3 _cameraPosition{0, 0, -2};
+	glm::vec3 _cameraPosition{0, 1.5f, -2};
 
 	void initialize(Window& window, Input& input, ResourceManager& rm, vk::DescriptorPool descriptorPool, vk::RenderPass renderPass) {
 		_input = &input;
@@ -235,17 +430,18 @@ struct Renderer {
 		};
 
 		vk::VertexInputBindingDescription bindings[] {
-				{0, sizeof(glm::vec3), vk::VertexInputRate::eVertex}
+				{0, sizeof(Vertex), vk::VertexInputRate::eVertex}
 		};
 
 		vk::VertexInputAttributeDescription attributes[]{
-				{0, bindings[0].binding, vk::Format::eR32G32B32Sfloat, 0},
+				{0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, position)},
+				{1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal)},
 		};
 
 		vk::PipelineVertexInputStateCreateInfo vertexInputState{
-				.vertexBindingDescriptionCount = 1,
+				.vertexBindingDescriptionCount = std::size(bindings),
 				.pVertexBindingDescriptions = bindings,
-				.vertexAttributeDescriptionCount = 1,
+				.vertexAttributeDescriptionCount = std::size(attributes),
 				.pVertexAttributeDescriptions = attributes
 		};
 
@@ -338,14 +534,48 @@ struct Renderer {
 		core->device().destroyShaderModule(vertShader);
 		core->device().destroyShaderModule(fragShader);
 
-		_builder.addCube({0, 0, 0, 1, 1, 1}, -0.5f, -0.5f, -0.5f);
-		_builder.addCube({0, 0, 0, 1, 1, 1}, -0.5f + 1, -0.5f + 1, -0.5f + 1);
+		json::Parser parser(geometry_humanoid);
+
+		auto model = std::get<json::Object>(parser.parse().value());
+		auto&& bones = std::get<json::Array>(model.at("bones"));
+
+		for (auto&& bone_obj : bones) {
+			auto&& bone = std::get<json::Object>(bone_obj);
+
+			bool neverRender = false;
+			if (bone.contains("neverRender")) {
+				neverRender = std::get<bool>(bone.at("neverRender"));
+			}
+
+			if (bone.contains("cubes")) {
+				auto &&cubes = std::get<json::Array>(bone.at("cubes"));
+				for (auto &&cube_obj : cubes) {
+					auto &&cube = std::get<json::Object>(cube_obj);
+					auto &&origin = std::get<json::Array>(cube.at("origin"));
+					auto &&size = std::get<json::Array>(cube.at("size"));
+					auto &&uv = std::get<json::Array>(cube.at("uv"));
+
+					if (!neverRender) {
+						_builder.addCube(
+							std::get<double>(origin[0]) / 16.0f,
+							std::get<double>(origin[1]) / 16.0f,
+							std::get<double>(origin[2]) / 16.0f,
+							std::get<int64_t>(size[0]) / 16.0f,
+							std::get<int64_t>(size[1]) / 16.0f,
+							std::get<int64_t>(size[2]) / 16.0f
+						);
+					}
+				}
+			}
+		}
+
+//		_builder.addCube(-0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f);
 
 		_buffer.SetIndexBufferSize(sizeof(int) * _builder.indices.size());
-		_buffer.SetVertexBufferSize(sizeof(glm::vec3) * _builder.vertices.size());
+		_buffer.SetVertexBufferSize(sizeof(Vertex) * _builder.vertices.size());
 
 		_buffer.SetIndexBufferData(_builder.indices.data(), 0, 0, sizeof(int) * _builder.indices.size());
-		_buffer.SetVertexBufferData(_builder.vertices.data(), 0, 0, sizeof(glm::vec3) * _builder.vertices.size());
+		_buffer.SetVertexBufferData(_builder.vertices.data(), 0, 0, sizeof(Vertex) * _builder.vertices.size());
 	}
 
 	float rotationYaw{0};
@@ -950,5 +1180,5 @@ private:
 int main(int, char**) {
 	Application app{};
 	app.run();
-    return 0;
+	return 0;
 }
