@@ -203,15 +203,10 @@ struct Input {
 	}
 
 	void handleMousePosition(double x, double y) {
-		float newPosition[2]{
-				static_cast<float>(x),
-				static_cast<float>(y)
-		};
-
-		_delta[0] = newPosition[0] - _mousePosition[0];
-		_delta[1] = newPosition[1] - _mousePosition[1];
-		_mousePosition[0] = newPosition[0];
-		_mousePosition[1] = newPosition[1];
+		_delta[0] = static_cast<float>(x) - _mousePosition[0];
+		_delta[1] = static_cast<float>(y) - _mousePosition[1];
+		_mousePosition[0] = static_cast<float>(x);
+		_mousePosition[1] = static_cast<float>(y);
 	}
 
 	[[nodiscard]] bool IsKeyDown(Key key) const {
@@ -243,29 +238,20 @@ struct Input {
 			return;
 
 		_cursorState = state;
-		if (state == CursorState::Normal) {
+		switch (state) {
+		case CursorState::Normal:
 			glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-
-			double xpos, ypos;
-			glfwGetCursorPos(_window, &xpos, &ypos);
-			_mousePosition[0] = float(xpos);
-			_mousePosition[1] = float(ypos);
-			_delta[0] = 0;
-			_delta[1] = 0;
-		} else if (state == CursorState::Locked) {
-			int width, height;
-			glfwGetWindowSize(_window, &width, &height);
-
-			auto xpos = float(width) * 0.5f;
-			auto ypos = float(height) * 0.5f;
-			_mousePosition[0] = xpos;
-			_mousePosition[1] = ypos;
-			_delta[0] = 0;
-			_delta[1] = 0;
-
-			glfwSetCursorPos(_window, xpos, ypos);
+			break;
+		case CursorState::Locked:
 			glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			break;
 		}
+		double xpos, ypos;
+		glfwGetCursorPos(_window, &xpos, &ypos);
+		_mousePosition[0] = static_cast<float>(xpos);
+		_mousePosition[1] = static_cast<float>(ypos);
+		_delta[0] = 0;
+		_delta[1] = 0;
 	}
 
 	[[nodiscard]] std::pair<float, float> mouseDelta() const {

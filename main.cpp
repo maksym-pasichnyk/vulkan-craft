@@ -16,34 +16,11 @@
 #include "Input.hpp"
 #include "Clock.hpp"
 
-struct Vertex {
-	glm::vec3 pos;
-	glm::vec3 color;
-	glm::vec2 uv;
-};
-
-Vertex vertices[] {
-		Vertex{glm::vec3(-0.5,  0.5, 0.5), glm::vec3(0.0, 0.0, 0.0), glm::vec2(0, 1)},
-		Vertex{glm::vec3( 0.5,  0.5, 0.5), glm::vec3(1.0, 0.0, 0.0), glm::vec2(1, 1)},
-		Vertex{glm::vec3(-0.5, -0.5, 0.5), glm::vec3(0.0, 1.0, 1.0), glm::vec2(0, 0)},
-		Vertex{glm::vec3( 0.5, -0.5, 0.5), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1, 0)},
-
-		Vertex{glm::vec3(0.5, -0.5,  0.5), glm::vec3(0.0, 0.0, 0.0), glm::vec2(0, 0)},
-		Vertex{glm::vec3(0.5, -0.5, -0.5), glm::vec3(1.0, 0.0, 0.0), glm::vec2(1, 0)},
-		Vertex{glm::vec3(0.5,  0.5,  0.5), glm::vec3(0.0, 1.0, 1.0), glm::vec2(0, 1)},
-		Vertex{glm::vec3(0.5,  0.5, -0.5), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1, 1)},
-};
-
-uint32_t indices[] {
-	0, 1, 2, 2, 1, 3,
-	4, 5, 6, 6, 5, 7
-};
-
 struct CameraUniform {
 	glm::mat4 camera;
 };
 
-inline static glm::mat4 PerspectiveProjectionMatrix(float aspect_ratio, float field_of_view, float near_plane, float far_plane) {
+inline static glm::mat4 PerspectiveProjectionMatrix(float field_of_view, float aspect_ratio, float near_plane, float far_plane) {
 	const float tanHalfFovy = glm::tan(field_of_view * 0.5f);
 
 	const float a = 1.0f / (aspect_ratio * tanHalfFovy);
@@ -90,6 +67,81 @@ struct CommandPool {
 	}
 };
 
+struct AABB {
+	float min_x;
+	float min_y;
+	float min_z;
+
+	float max_x;
+	float max_y;
+	float max_z;
+};
+
+struct VertexBuilder {
+	std::vector<int> indices;
+	std::vector<glm::vec3> vertices;
+
+	void addQuad(int a1, int b1, int c1, int a2, int b2, int c2) {
+		int idx = vertices.size();
+
+		indices.reserve(6);
+
+		indices.push_back(idx + a1);
+		indices.push_back(idx + b1);
+		indices.push_back(idx + c1);
+
+		indices.push_back(idx + a2);
+		indices.push_back(idx + b2);
+		indices.push_back(idx + c2);
+	}
+
+	void addCube(AABB aabb, float x, float y, float z) {
+		const float x0 = x + aabb.min_x;
+		const float y0 = y + aabb.min_y;
+		const float z0 = z + aabb.min_z;
+		
+		const float x1 = x + aabb.max_x;
+		const float y1 = y + aabb.max_y;
+		const float z1 = z + aabb.max_z;
+		
+		addQuad(0, 1, 2, 0, 2, 3);
+		vertices.emplace_back(x0, y0, z0);
+		vertices.emplace_back(x0, y1, z0);
+		vertices.emplace_back(x1, y1, z0);
+		vertices.emplace_back(x1, y0, z0);
+
+		addQuad(0, 1, 2, 0, 2, 3);
+		vertices.emplace_back(x1, y0, z0);
+		vertices.emplace_back(x1, y1, z0);
+		vertices.emplace_back(x1, y1, z1);
+		vertices.emplace_back(x1, y0, z1);
+
+		addQuad(0, 1, 2, 0, 2, 3);
+		vertices.emplace_back(x1, y0, z1);
+		vertices.emplace_back(x1, y1, z1);
+		vertices.emplace_back(x0, y1, z1);
+		vertices.emplace_back(x0, y0, z1);
+
+		addQuad(0, 1, 2, 0, 2, 3);
+		vertices.emplace_back(x0, y0, z1);
+		vertices.emplace_back(x0, y1, z1);
+		vertices.emplace_back(x0, y1, z0);
+		vertices.emplace_back(x0, y0, z0);
+
+		addQuad(0, 1, 2, 0, 2, 3);
+		vertices.emplace_back(x0, y1, z0);
+		vertices.emplace_back(x0, y1, z1);
+		vertices.emplace_back(x1, y1, z1);
+		vertices.emplace_back(x1, y1, z0);
+
+		addQuad(0, 1, 2, 0, 2, 3);
+		vertices.emplace_back(x0, y0, z1);
+		vertices.emplace_back(x0, y0, z0);
+		vertices.emplace_back(x1, y0, z0);
+		vertices.emplace_back(x1, y0, z1);
+	}
+};
+
 struct Renderer {
 	RenderSystem* core = RenderSystem::Get();
 
@@ -100,21 +152,22 @@ struct Renderer {
 	vk::Pipeline _pipeline;
 //	vk::Sampler _sampler;
 
-	Input* pInput;
+	Input* _input;
 	RenderBuffer _buffer;
+	VertexBuilder _builder;
 
 	glm::mat4 _projection;
-	glm::vec3 _cameraPosition{-1, -1, -2};
+	glm::vec3 _cameraPosition{0, 0, -2};
 
 	void initialize(Window& window, Input& input, ResourceManager& rm, vk::DescriptorPool descriptorPool, vk::RenderPass renderPass) {
-		pInput = &input;
+		_input = &input;
 
 		_width = window.width();
 		_height = window.height();
 
 		_projection = PerspectiveProjectionMatrix(
-				float(_width) / float(_height),
 				glm::radians(60.0f),
+				float(_width) / float(_height),
 				0.1f,
 				1000.0f
 		);
@@ -182,11 +235,11 @@ struct Renderer {
 		};
 
 		vk::VertexInputBindingDescription bindings[] {
-				{0, sizeof(ImVec2), vk::VertexInputRate::eVertex}
+				{0, sizeof(glm::vec3), vk::VertexInputRate::eVertex}
 		};
 
 		vk::VertexInputAttributeDescription attributes[]{
-				{0, bindings[0].binding, vk::Format::eR32G32Sfloat, 0},
+				{0, bindings[0].binding, vk::Format::eR32G32B32Sfloat, 0},
 		};
 
 		vk::PipelineVertexInputStateCreateInfo vertexInputState{
@@ -245,7 +298,11 @@ struct Renderer {
 						vk::ColorComponentFlagBits::eA
 		};
 
-		vk::PipelineDepthStencilStateCreateInfo depthStencilState;
+		vk::PipelineDepthStencilStateCreateInfo depthStencilState {
+			.depthTestEnable = VK_TRUE,
+			.depthWriteEnable = VK_TRUE,
+			.depthCompareOp = vk::CompareOp::eLess
+		};
 
 		vk::PipelineColorBlendStateCreateInfo colorBlendState{
 				.attachmentCount = 1,
@@ -281,47 +338,84 @@ struct Renderer {
 		core->device().destroyShaderModule(vertShader);
 		core->device().destroyShaderModule(fragShader);
 
-		_buffer.SetIndexBufferSize(sizeof(int) * 12);
-		_buffer.SetVertexBufferSize(sizeof(ImVec2) * 4);
+		_builder.addCube({0, 0, 0, 1, 1, 1}, -0.5f, -0.5f, -0.5f);
+		_builder.addCube({0, 0, 0, 1, 1, 1}, -0.5f + 1, -0.5f + 1, -0.5f + 1);
 
-		int indices[] {
-			0, 1, 2,
-			0, 2, 3
-		};
+		_buffer.SetIndexBufferSize(sizeof(int) * _builder.indices.size());
+		_buffer.SetVertexBufferSize(sizeof(glm::vec3) * _builder.vertices.size());
 
-		ImVec2 vertices[] {
-			ImVec2{-0.5, -0.5},
-			ImVec2{-0.5, +0.5},
-			ImVec2{+0.5, +0.5},
-			ImVec2{+0.5, -0.5}
-		};
+		_buffer.SetIndexBufferData(_builder.indices.data(), 0, 0, sizeof(int) * _builder.indices.size());
+		_buffer.SetVertexBufferData(_builder.vertices.data(), 0, 0, sizeof(glm::vec3) * _builder.vertices.size());
+	}
 
-		_buffer.SetIndexBufferData(indices, 0, 0, sizeof(int) * 6);
-		_buffer.SetVertexBufferData(vertices, 0, 0, sizeof(ImVec2) * 4);
+	float rotationYaw{0};
+	float rotationPitch{0};
+
+	glm::mat4 rotationMatrix() {
+		float yaw = glm::radians(rotationYaw);
+		float pitch = glm::radians(rotationPitch);
+
+		float sp = glm::sin(pitch);
+		float cp = glm::cos(pitch);
+
+		float c = glm::cos(yaw);
+		float s = glm::sin(yaw);
+
+		glm::mat4 view;
+		view[0] = glm::vec4(c, sp * s, -cp * s, 0);
+		view[1] = glm::vec4(0, cp, sp, 0);
+		view[2] = glm::vec4(s, -sp * c, cp * c, 0);
+		view[3] = glm::vec4(0, 0, 0, 1);
+		return view;
+	}
+
+	void update(Clock& clock) {
+		if (_input->IsMouseButtonPressed(MouseButton::Left)) {
+			_input->setCursorState(CursorState::Locked);
+
+			auto [xdelta, ydelta] = _input->mouseDelta();
+
+			if (xdelta != 0 || ydelta != 0) {
+				double d4 = 0.5f * (double) 0.6F + (double) 0.2F;
+				double d5 = d4 * d4 * d4 * 8.0;
+
+				rotationYaw = rotationYaw - xdelta * d5 * clock.deltaSeconds() * 9.0;
+				rotationPitch = glm::clamp(rotationPitch - ydelta * d5 * clock.deltaSeconds() * 9.0, -90.0, 90.0);
+			}
+		} else {
+			_input->setCursorState(CursorState::Normal);
+		}
+
+		auto rot = glm::mat3(rotationMatrix());
+		auto forward = glm::vec3(0, 0, 1) * rot;
+		auto right = glm::vec3(1, 0, 0) * rot;
+
+		if (_input->IsKeyPressed(Key::W)) {
+			_cameraPosition += forward * clock.deltaSeconds() * 5.0f;
+		}
+		if (_input->IsKeyPressed(Key::S)) {
+			_cameraPosition -= forward * clock.deltaSeconds() * 5.0f;
+		}
+		if (_input->IsKeyPressed(Key::A)) {
+			_cameraPosition -= right * clock.deltaSeconds() * 5.0f;
+		}
+		if (_input->IsKeyPressed(Key::D)) {
+			_cameraPosition += right * clock.deltaSeconds() * 5.0f;
+		}
 	}
 
 	void draw(vk::CommandBuffer cmd) {
-		if (pInput->IsKeyPressed(Key::W)) {
-			_cameraPosition.y += 0.1f;
-		}
-		if (pInput->IsKeyPressed(Key::S)) {
-			_cameraPosition.y -= 0.1f;
-		}
-		if (pInput->IsKeyPressed(Key::A)) {
-			_cameraPosition.x -= 0.1f;
-		}
-		if (pInput->IsKeyPressed(Key::D)) {
-			_cameraPosition.x += 0.1f;
-		}
-
 		vk::DeviceSize offset{0};
 
 		vk::Buffer vertexBuffers[] {
 			_buffer.VertexBuffer
 		};
 
+		auto proj = _projection;
+		auto view = rotationMatrix();
+
 		CameraUniform uniform {
-			.camera = glm::translate(_projection, -_cameraPosition)
+			.camera = proj * glm::translate(view, -_cameraPosition)
 		};
 
 		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
@@ -329,7 +423,7 @@ struct Renderer {
 		cmd.bindVertexBuffers(0, 1, vertexBuffers, &offset);
 		cmd.bindIndexBuffer(_buffer.IndexBuffer, 0, vk::IndexType::eUint32);
 
-		cmd.drawIndexed(6, 1, 0, 0, 0);
+		cmd.drawIndexed(_builder.indices.size(), 1, 0, 0, 0);
 	}
 
 	void terminate() {
@@ -446,7 +540,11 @@ struct Application {
 		clock.reset();
 		while (!glfwWindowShouldClose(window.handle())) {
 			clock.update();
+
 			input.update();
+			glfwPollEvents();
+
+			_renderer.update(clock);
 
 			_gui.begin();
 			_gui.end();
@@ -456,7 +554,6 @@ struct Application {
 			_gui.draw(cmd);
 			end();
 
-			glfwPollEvents();
 		}
 	}
 

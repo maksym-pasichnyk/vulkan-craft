@@ -5,8 +5,11 @@ layout(push_constant) uniform CameraUniform {
     mat4 camera;
 };
 
-layout(location = 0) in vec2 inPosition;
+layout(location = 0) in vec3 inPosition;
+
+layout(location = 0) out vec3 color;
 
 void main() {
-	gl_Position = camera * vec4(inPosition.x, inPosition.y, 0.0, 1.0);
+	gl_Position = camera * vec4(inPosition, 1.0);
+	color = normalize(inPosition);
 }
