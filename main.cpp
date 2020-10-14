@@ -16,6 +16,8 @@
 #include "Input.hpp"
 #include "Clock.hpp"
 
+#include "DescriptorPool.hpp"
+
 struct CameraUniform {
 	glm::mat4 camera;
 };
@@ -36,37 +38,6 @@ inline static glm::mat4 PerspectiveProjectionMatrix(float field_of_view, float a
 	};
 }
 
-struct CommandPool {
-	vk::CommandPool _commandPool;
-
-	inline static CommandPool create(uint32_t queue_index, vk::CommandPoolCreateFlags flags) {
-		vk::CommandPoolCreateInfo createInfo;
-		createInfo.flags = flags;
-		createInfo.queueFamilyIndex = queue_index;
-		return {RenderSystem::Get()->device().createCommandPool(createInfo, nullptr)};
-	}
-
-	void destroy() {
-		RenderSystem::Get()->device().destroyCommandPool(_commandPool);
-	}
-
-	inline vk::CommandBuffer allocate(vk::CommandBufferLevel level) {
-		vk::CommandBufferAllocateInfo allocateInfo {
-			.commandPool = _commandPool,
-			.level = level,
-			.commandBufferCount = 1
-		};
-
-		vk::CommandBuffer commandBuffer;
-		RenderSystem::Get()->device().allocateCommandBuffers(&allocateInfo, &commandBuffer);
-		return commandBuffer;
-	}
-
-	void free(vk::CommandBuffer commandBuffer) {
-		RenderSystem::Get()->device().freeCommandBuffers(_commandPool, 1, &commandBuffer);
-	}
-};
-
 struct AABB {
 	float min_x;
 	float min_y;
@@ -80,8 +51,12 @@ struct AABB {
 struct Vertex {
 	glm::vec3 position;
 	glm::vec3 normal;
+	glm::vec2 coords;
 
-	Vertex(float x, float y, float z, float nx, float ny, float nz) : position{x, y, z}, normal{nx, ny, nz} {}
+	Vertex(float x, float y, float z, float u, float v, float nx, float ny, float nz)
+		: position{x, y, z}
+		, normal{nx, ny, nz}
+		, coords{u, v} {}
 };
 
 struct VertexBuilder {
@@ -102,57 +77,57 @@ struct VertexBuilder {
 		indices.push_back(idx + c2);
 	}
 
-	void addCube(float ox, float oy, float oz, float sx, float sy, float sz) {
-		const float x0 = ox;
-		const float y0 = oy;
-		const float z0 = oz;
-		
-		const float x1 = ox + sx;
-		const float y1 = oy + sy;
-		const float z1 = oz + sz;
-
-		// south
-		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x0, y0, z0, 0, 0, -1);
-		vertices.emplace_back(x0, y1, z0, 0, 0, -1);
-		vertices.emplace_back(x1, y1, z0, 0, 0, -1);
-		vertices.emplace_back(x1, y0, z0, 0, 0, -1);
-
-		// east
-		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x1, y0, z0, 1, 0, 0);
-		vertices.emplace_back(x1, y1, z0, 1, 0, 0);
-		vertices.emplace_back(x1, y1, z1, 1, 0, 0);
-		vertices.emplace_back(x1, y0, z1, 1, 0, 0);
-
-		// north
-		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x1, y0, z1, 0, 0, 1);
-		vertices.emplace_back(x1, y1, z1, 0, 0, 1);
-		vertices.emplace_back(x0, y1, z1, 0, 0, 1);
-		vertices.emplace_back(x0, y0, z1, 0, 0, 1);
-
-		// west
-		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x0, y0, z1, -1, 0, 0);
-		vertices.emplace_back(x0, y1, z1, -1, 0, 0);
-		vertices.emplace_back(x0, y1, z0, -1, 0, 0);
-		vertices.emplace_back(x0, y0, z0, -1, 0, 0);
-
-		// up
-		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x0, y1, z0, 0, 1, 0);
-		vertices.emplace_back(x0, y1, z1, 0, 1, 0);
-		vertices.emplace_back(x1, y1, z1, 0, 1, 0);
-		vertices.emplace_back(x1, y1, z0, 0, 1, 0);
-
-		// down
-		addQuad(0, 1, 2, 0, 2, 3);
-		vertices.emplace_back(x0, y0, z1, 0, -1, 0);
-		vertices.emplace_back(x0, y0, z0, 0, -1, 0);
-		vertices.emplace_back(x1, y0, z0, 0, -1, 0);
-		vertices.emplace_back(x1, y0, z1, 0, -1, 0);
-	}
+//	void addCube(float ox, float oy, float oz, float sx, float sy, float sz) {
+//		const float x0 = ox;
+//		const float y0 = oy;
+//		const float z0 = oz;
+//
+//		const float x1 = ox + sx;
+//		const float y1 = oy + sy;
+//		const float z1 = oz + sz;
+//
+//		// south
+//		addQuad(0, 1, 2, 0, 2, 3);
+//		vertices.emplace_back(x0, y0, z0, 0, 0, -1);
+//		vertices.emplace_back(x0, y1, z0, 0, 0, -1);
+//		vertices.emplace_back(x1, y1, z0, 0, 0, -1);
+//		vertices.emplace_back(x1, y0, z0, 0, 0, -1);
+//
+//		// east
+//		addQuad(0, 1, 2, 0, 2, 3);
+//		vertices.emplace_back(x1, y0, z0, 1, 0, 0);
+//		vertices.emplace_back(x1, y1, z0, 1, 0, 0);
+//		vertices.emplace_back(x1, y1, z1, 1, 0, 0);
+//		vertices.emplace_back(x1, y0, z1, 1, 0, 0);
+//
+//		// north
+//		addQuad(0, 1, 2, 0, 2, 3);
+//		vertices.emplace_back(x1, y0, z1, 0, 0, 1);
+//		vertices.emplace_back(x1, y1, z1, 0, 0, 1);
+//		vertices.emplace_back(x0, y1, z1, 0, 0, 1);
+//		vertices.emplace_back(x0, y0, z1, 0, 0, 1);
+//
+//		// west
+//		addQuad(0, 1, 2, 0, 2, 3);
+//		vertices.emplace_back(x0, y0, z1, -1, 0, 0);
+//		vertices.emplace_back(x0, y1, z1, -1, 0, 0);
+//		vertices.emplace_back(x0, y1, z0, -1, 0, 0);
+//		vertices.emplace_back(x0, y0, z0, -1, 0, 0);
+//
+//		// up
+//		addQuad(0, 1, 2, 0, 2, 3);
+//		vertices.emplace_back(x0, y1, z0, 0, 1, 0);
+//		vertices.emplace_back(x0, y1, z1, 0, 1, 0);
+//		vertices.emplace_back(x1, y1, z1, 0, 1, 0);
+//		vertices.emplace_back(x1, y1, z0, 0, 1, 0);
+//
+//		// down
+//		addQuad(0, 1, 2, 0, 2, 3);
+//		vertices.emplace_back(x0, y0, z1, 0, -1, 0);
+//		vertices.emplace_back(x0, y0, z0, 0, -1, 0);
+//		vertices.emplace_back(x1, y0, z0, 0, -1, 0);
+//		vertices.emplace_back(x1, y0, z1, 0, -1, 0);
+//	}
 };
 
 struct Cube {
@@ -168,174 +143,38 @@ struct Bone {
 };
 
 #include "Json.hpp"
+#include "stb_image.hpp"
 
-constexpr std::string_view geometry_humanoid = R"({
-	"visible_bounds_width": 1,
-	"visible_bounds_height": 1,
-	"visible_bounds_offset": [ 0, 0.5, 0 ],
-	"bones": [
-		{
-			"name": "body",
-			"pivot": [ 0.0, 24.0, 0.0 ],
-			"cubes": [
-				{
-					"origin": [ -4.0, 12.0, -2.0 ],
-					"size": [ 8, 12, 4 ],
-					"uv": [ 16, 16 ]
-				}
-			]
-		},
+struct PositionTextureVertex {
+	float x;
+	float y;
+	float z;
+	float u;
+	float v;
+};
 
-		{
-			"name": "waist",
-			"neverRender": true,
-			"pivot": [ 0.0, 12.0, 0.0 ]
-		},
+struct TexturedQuad {
+	std::array<PositionTextureVertex, 4> _vertices;
+	glm::vec3 _normal;
 
-		{
-			"name": "head",
-			"pivot": [ 0.0, 24.0, 0.0 ],
-			"cubes": [
-				{
-					"origin": [ -4.0, 24.0, -4.0 ],
-					"size": [ 8, 8, 8 ],
-					"uv": [ 0, 0 ]
-				}
-			]
-		},
+	TexturedQuad(std::array<PositionTextureVertex, 4> vertices, float u0, float v0, float u1, float v1, float texture_width, float texture_height, glm::vec3 normal)
+		: _vertices(vertices), _normal(normal) {
 
-		{
-			"name": "hat",
-			"pivot": [ 0.0, 24.0, 0.0 ],
-			"cubes": [
-				{
-					"origin": [ -4.0, 24.0, -4.0 ],
-					"size": [ 8, 8, 8 ],
-					"uv": [ 32, 0 ],
-					"inflate": 0.5
-				}
-			],
-			"neverRender": true
-		},
+		_vertices[0].u = u0 / texture_width; _vertices[0].v = v1 / texture_height;
+		_vertices[1].u = u0 / texture_width; _vertices[1].v = v0 / texture_height;
+		_vertices[2].u = u1 / texture_width; _vertices[2].v = v0 / texture_height;
+		_vertices[3].u = u1 / texture_width; _vertices[3].v = v1 / texture_height;
+	}
+};
 
-		{
-			"name": "rightArm",
-			"pivot": [ -5.0, 22.0, 0.0 ],
-			"cubes": [
-				{
-					"origin": [ -8.0, 12.0, -2.0 ],
-					"size": [ 4, 12, 4 ],
-					"uv": [ 40, 16 ]
-				}
-			]
-		},
+struct ModelBox {
+	std::array<TexturedQuad, 6> quads;
+};
 
-		{
-			"name": "rightItem",
-			"pivot": [ -6, 15, 1 ],
-			"neverRender": true,
-			"parent": "rightArm"
-		},
-
-		{
-			"name": "leftArm",
-			"pivot": [ 5.0, 22.0, 0.0 ],
-			"cubes": [
-				{
-					"origin": [ 4.0, 12.0, -2.0 ],
-					"size": [ 4, 12, 4 ],
-					"uv": [ 40, 16 ]
-				}
-			],
-			"mirror": true
-		},
-
-		{
-			"name": "rightLeg",
-			"pivot": [ -1.9, 12.0, 0.0 ],
-			"cubes": [
-				{
-					"origin": [ -3.9, 0.0, -2.0 ],
-					"size": [ 4, 12, 4 ],
-					"uv": [ 0, 16 ]
-				}
-			]
-		},
-
-		{
-			"name": "leftLeg",
-			"pivot": [ 1.9, 12.0, 0.0 ],
-			"cubes": [
-				{
-					"origin": [ -0.1, 0.0, -2.0 ],
-					"size": [ 4, 12, 4 ],
-					"uv": [ 0, 16 ]
-				}
-			],
-			"mirror": true
-		},
-
-		{
-			"name": "helmet",
-			"pivot": [ 0.0, 24.0, 0.0 ],
-			"neverRender": true
-		},
-		{
-			"name": "rightArmArmor",
-			"pivot": [ -5.0, 22.0, 0.0 ],
-			"parent": "rightArm"
-		},
-		{
-			"name": "leftArmArmor",
-			"pivot": [ 5.0, 22.0, 0.0 ],
-			"parent": "leftArm",
-			"mirror": true
-		},
-		{
-			"name": "rightLegging",
-			"pivot": [ -1.9, 12.0, 0.0 ],
-			"parent": "rightLeg"
-		},
-		{
-			"name": "leftLegging",
-			"pivot": [ 1.9, 12.0, 0.0 ],
-			"parent": "leftLeg",
-			"mirror": true
-		},
-		{
-			"name": "rightBoot",
-			"pivot": [ -1.9, 12.0, 0.0 ],
-			"parent": "rightLeg"
-		},
-		{
-			"name": "leftBoot",
-			"pivot": [ 1.9, 12.0, 0.0 ],
-			"parent": "leftLeg",
-			"mirror": true
-		},
-		{
-			"name": "rightSock",
-			"pivot": [ -1.9, 12.0, 0.0 ],
-			"parent": "rightLeg"
-		},
-		{
-			"name": "leftSock",
-			"pivot": [ 1.9, 12.0, 0.0 ],
-			"parent": "leftLeg",
-			"mirror": true
-		},
-		{
-			"name": "bodyArmor",
-			"pivot": [ 0.0, 24.0, 0.0 ],
-			"parent": "body"
-		},
-		{
-			"name": "belt",
-			"pivot": [ 0.0, 24.0, 0.0 ],
-			"parent": "body"
-		}
-	]
-})";
+struct ModelRenderer {
+	std::vector<std::unique_ptr<ModelBox>> cubes;
+	std::vector<std::unique_ptr<ModelRenderer>> childs;
+};
 
 struct Renderer {
 	RenderSystem* core = RenderSystem::Get();
@@ -345,7 +184,13 @@ struct Renderer {
 
 	vk::PipelineLayout _pipelineLayout;
 	vk::Pipeline _pipeline;
-//	vk::Sampler _sampler;
+	vk::Sampler _sampler;
+
+	CommandPool _commandPool;
+
+	Texture _texture;
+	vk::DescriptorSetLayout _descriptorSetLayout;
+	vk::DescriptorSet _descriptorSet;
 
 	Input* _input;
 	RenderBuffer _buffer;
@@ -354,7 +199,7 @@ struct Renderer {
 	glm::mat4 _projection;
 	glm::vec3 _cameraPosition{0, 1.5f, -2};
 
-	void initialize(Window& window, Input& input, ResourceManager& rm, vk::DescriptorPool descriptorPool, vk::RenderPass renderPass) {
+	void initialize(Window& window, Input& input, ResourceManager& rm, DescriptorPool descriptorPool, vk::RenderPass renderPass) {
 		_input = &input;
 
 		_width = window.width();
@@ -368,7 +213,7 @@ struct Renderer {
 		);
 
 		vk::ShaderModule vertShader{nullptr};
-		rm.loadFile("default.vert.spv", [&](std::span<char> bytes) {
+		rm.loadFile("shaders/default.vert.spv", [&](std::span<char> bytes) {
 			vertShader = core->device().createShaderModule({
 					.codeSize = bytes.size(),
 					.pCode = reinterpret_cast<const uint32_t *>(bytes.data())
@@ -376,49 +221,48 @@ struct Renderer {
 		});
 
 		vk::ShaderModule fragShader{nullptr};
-		rm.loadFile("default.frag.spv", [&](std::span<char> bytes) {
+		rm.loadFile("shaders/default.frag.spv", [&](std::span<char> bytes) {
 			fragShader = core->device().createShaderModule({
 					.codeSize = bytes.size(),
 					.pCode = reinterpret_cast<const uint32_t *>(bytes.data())
 			});
 		});
 
-//			vk::SamplerCreateInfo sampler_create_info{
-//					.magFilter = vk::Filter::eLinear,
-//					.minFilter = vk::Filter::eLinear,
-//					.mipmapMode = vk::SamplerMipmapMode::eLinear,
-//					.addressModeU = vk::SamplerAddressMode::eRepeat,
-//					.addressModeV = vk::SamplerAddressMode::eRepeat,
-//					.addressModeW = vk::SamplerAddressMode::eRepeat,
-//					.maxAnisotropy = 1.0f,
-//					.minLod = -1000,
-//					.maxLod = 1000
-//			};
+		vk::SamplerCreateInfo samplerCreateInfo{
+				.magFilter = vk::Filter::eNearest,
+				.minFilter = vk::Filter::eNearest,
+				.mipmapMode = vk::SamplerMipmapMode::eNearest,
+				.addressModeU = vk::SamplerAddressMode::eRepeat,
+				.addressModeV = vk::SamplerAddressMode::eRepeat,
+				.addressModeW = vk::SamplerAddressMode::eRepeat,
+				.maxAnisotropy = 0.0f,
+				.minLod = 0,
+				.maxLod = 0
+		};
 
-//			_sampler = core->device().createSampler(sampler_create_info, nullptr);
+		_sampler = core->device().createSampler(samplerCreateInfo, nullptr);
 
-//			vk::DescriptorSetLayoutBinding descriptorSetLayoutBinding{
-//					.binding = 0,
-//					.descriptorType = vk::DescriptorType::eCombinedImageSampler,
-//					.descriptorCount = 1,
-//					.stageFlags = vk::ShaderStageFlagBits::eFragment,
-//					.pImmutableSamplers = &_sampler
-//			};
+		vk::DescriptorSetLayoutBinding descriptorSetLayoutBinding{
+				.binding = 0,
+				.descriptorType = vk::DescriptorType::eCombinedImageSampler,
+				.descriptorCount = 1,
+				.stageFlags = vk::ShaderStageFlagBits::eFragment,
+				.pImmutableSamplers = &_sampler
+		};
 
-//			vk::DescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{
-//					.bindingCount = 1,
-//					.pBindings = &descriptorSetLayoutBinding
-//			};
-//			_descriptorSetLayout = core->device().createDescriptorSetLayout(descriptor_set_layout_create_info, nullptr);
-//			_fontDescriptor = vkx::allocate(_descriptorPool, _descriptorSetLayout);
+		vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{
+				.bindingCount = 1,
+				.pBindings = &descriptorSetLayoutBinding
+		};
+		_descriptorSetLayout = core->device().createDescriptorSetLayout(descriptorSetLayoutCreateInfo, nullptr);
 
 		vk::PushConstantRange constant {
 			vk::ShaderStageFlagBits::eVertex, 0, sizeof(CameraUniform)
 		};
 
 		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{
-				.setLayoutCount = /*1*/0,
-				.pSetLayouts = nullptr,
+				.setLayoutCount = 1,
+				.pSetLayouts = &_descriptorSetLayout,
 				.pushConstantRangeCount = 1,
 				.pPushConstantRanges = &constant
 		};
@@ -436,6 +280,7 @@ struct Renderer {
 		vk::VertexInputAttributeDescription attributes[]{
 				{0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, position)},
 				{1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal)},
+				{2, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, coords)},
 		};
 
 		vk::PipelineVertexInputStateCreateInfo vertexInputState{
@@ -459,7 +304,6 @@ struct Renderer {
 			.maxDepth = 1
 		};
 
-
 		vk::Rect2D scissor {
 			{0, 0}, {uint32_t(_width), uint32_t(_height)}
 		};
@@ -478,7 +322,7 @@ struct Renderer {
 				.lineWidth = 1.0f
 		};
 
-		vk::PipelineMultisampleStateCreateInfo multisampleState;
+		vk::PipelineMultisampleStateCreateInfo multisampleState {};
 
 		vk::PipelineColorBlendAttachmentState colorBlendAttachmentState{
 				.blendEnable = VK_TRUE,
@@ -505,16 +349,6 @@ struct Renderer {
 				.pAttachments = &colorBlendAttachmentState
 		};
 
-//		vk::DynamicState dynamic_states[]{
-//				vk::DynamicState::eViewport,
-//				vk::DynamicState::eScissor
-//		};
-//
-//		vk::PipelineDynamicStateCreateInfo dynamicState{
-//				.dynamicStateCount = 2,
-//				.pDynamicStates = dynamic_states
-//		};
-
 		vk::GraphicsPipelineCreateInfo pipelineCreateInfo{
 				.stageCount = 2,
 				.pStages = stages,
@@ -525,57 +359,200 @@ struct Renderer {
 				.pMultisampleState = &multisampleState,
 				.pDepthStencilState = &depthStencilState,
 				.pColorBlendState = &colorBlendState,
-//				.pDynamicState = &dynamicState,
 				.layout = _pipelineLayout,
 				.renderPass = renderPass,
 		};
 
 		core->device().createGraphicsPipelines(nullptr, 1, &pipelineCreateInfo, nullptr, &_pipeline);
-		core->device().destroyShaderModule(vertShader);
-		core->device().destroyShaderModule(fragShader);
+		core->device().destroyShaderModule(vertShader, nullptr);
+		core->device().destroyShaderModule(fragShader, nullptr);
 
-		json::Parser parser(geometry_humanoid);
+		_descriptorSet = descriptorPool.allocate(_descriptorSetLayout);
+		_commandPool = CommandPool::create(core->graphicsFamily(), vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
 
-		auto model = std::get<json::Object>(parser.parse().value());
-		auto&& bones = std::get<json::Array>(model.at("bones"));
+		rm.loadFile("resource_packs/vanilla/textures/entity/agent.png", [&](std::span<const char> bytes) {
+			auto cmd = _commandPool.allocate(vk::CommandBufferLevel::ePrimary);
+			cmd.begin({ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 
-		for (auto&& bone_obj : bones) {
-			auto&& bone = std::get<json::Object>(bone_obj);
+			int width, height, channels;
 
-			bool neverRender = false;
-			if (bone.contains("neverRender")) {
-				neverRender = std::get<bool>(bone.at("neverRender"));
+			auto data = reinterpret_cast<const unsigned char*>(bytes.data());
+			auto pixels = stbi_load_from_memory(data, bytes.size(), &width, &height, &channels, 0);
+
+			_texture = Texture::create2D(vk::Format::eR8G8B8A8Unorm, width, height);
+			_texture.updateDescriptorSet(_descriptorSet);
+
+			vk::DeviceSize upload_size = width * height * channels;
+
+			{
+				vk::BufferCreateInfo srcBufferCreateInfo{.size = upload_size, .usage = vk::BufferUsageFlagBits::eTransferSrc};
+
+				auto srcBuffer = Buffer::create(srcBufferCreateInfo, {.usage = VMA_MEMORY_USAGE_CPU_ONLY});
+				std::memcpy(srcBuffer.map(), pixels, upload_size);
+				srcBuffer.unmap();
+
+				vk::ImageMemoryBarrier copy_barrier{
+						.dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+						.oldLayout = vk::ImageLayout::eUndefined,
+						.newLayout = vk::ImageLayout::eTransferDstOptimal,
+						.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+						.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+						.image = _texture.image,
+						.subresourceRange {
+								.aspectMask = vk::ImageAspectFlagBits::eColor,
+								.levelCount = 1,
+								.layerCount = 1
+						}
+				};
+
+				cmd.pipelineBarrier(vk::PipelineStageFlagBits::eHost, vk::PipelineStageFlagBits::eTransfer, {}, 0, nullptr, 0, nullptr, 1, &copy_barrier);
+
+				vk::BufferImageCopy region{
+						.imageSubresource {
+								.aspectMask = vk::ImageAspectFlagBits::eColor,
+								.layerCount = 1
+						},
+						.imageExtent = {
+								.width = static_cast<uint32_t>(width),
+								.height = static_cast<uint32_t>(height),
+								.depth = 1
+						}
+				};
+
+				cmd.copyBufferToImage(srcBuffer, _texture.image, vk::ImageLayout::eTransferDstOptimal, 1, &region);
+
+				vk::ImageMemoryBarrier use_barrier{
+						.srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+						.dstAccessMask = vk::AccessFlagBits::eShaderRead,
+						.oldLayout = vk::ImageLayout::eTransferDstOptimal,
+						.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+						.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+						.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+						.image = _texture.image,
+						.subresourceRange = {
+								.aspectMask = vk::ImageAspectFlagBits::eColor,
+								.levelCount = 1,
+								.layerCount = 1,
+						}
+				};
+
+				cmd.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, {}, 0, nullptr, 0, nullptr, 1, &use_barrier);
+
+				cmd.end();
+
+				vk::SubmitInfo submitInfo{
+						.commandBufferCount = 1,
+						.pCommandBuffers = &cmd
+				};
+				core->graphicsQueue().submit(1, &submitInfo, nullptr);
+				core->graphicsQueue().waitIdle();
+
+				srcBuffer.destroy();
 			}
+		});
 
-			if (bone.contains("cubes")) {
-				auto &&cubes = std::get<json::Array>(bone.at("cubes"));
-				for (auto &&cube_obj : cubes) {
-					auto &&cube = std::get<json::Object>(cube_obj);
-					auto &&origin = std::get<json::Array>(cube.at("origin"));
-					auto &&size = std::get<json::Array>(cube.at("size"));
-					auto &&uv = std::get<json::Array>(cube.at("uv"));
+		rm.loadFile("resource_packs/vanilla/models/mobs.json", [&](std::span<const char> bytes) {
+			json::Parser parser(bytes);
 
-					if (!neverRender) {
-						_builder.addCube(
-							std::get<double>(origin[0]) / 16.0f,
-							std::get<double>(origin[1]) / 16.0f,
-							std::get<double>(origin[2]) / 16.0f,
-							std::get<int64_t>(size[0]) / 16.0f,
-							std::get<int64_t>(size[1]) / 16.0f,
-							std::get<int64_t>(size[2]) / 16.0f
-						);
+			auto mobs = parser.parse().value().object();
+
+			auto&& mob = mobs.at("geometry.agent").object();
+			auto&& bones = mob.at("bones").array();
+
+			auto texture_width = mob.at("texturewidth").i64();
+			auto texture_height = mob.at("textureheight").i64();
+
+			for (auto&& bone_obj : bones) {
+				auto&& bone = bone_obj.object();
+
+				bool neverRender = false;
+				if (bone.contains("neverRender")) {
+					neverRender = bone.at("neverRender").as_bool();
+				}
+
+				if (bone.contains("cubes")) {
+					auto &&cubes = bone.at("cubes").array();
+					for (auto &&cube_obj : cubes) {
+						auto &&cube = cube_obj.object();
+						auto &&origin = cube.at("origin").array();
+						auto &&size = cube.at("size").array();
+						auto &&uv = cube.at("uv").array();
+
+						if (!neverRender) {
+							const float ox = origin[0].f64() / 16.0f;
+							const float oy = origin[1].f64() / 16.0f;
+							const float oz = origin[2].f64() / 16.0f;
+
+							const float sx = size[0].f64();
+							const float sy = size[1].f64();
+							const float sz = size[2].f64();
+
+							const float x0 = ox;
+							const float y0 = oy;
+							const float z0 = oz;
+
+							const float x1 = ox + sx / 16.0f;
+							const float y1 = oy + sy / 16.0f;
+							const float z1 = oz + sz / 16.0f;
+
+							const float u = uv[0].f64();
+							const float v = uv[1].f64();
+
+							const float u0 = u;
+							const float u1 = u + sz;
+							const float u2 = u + sz + sx;
+							const float u3 = u + sz + sx + sx;
+							const float u4 = u + sz + sx + sz;
+							const float u5 = u + sz + sx + sz + sx;
+
+							const float v0 = v;
+							const float v1 = v + sz;
+							const float v2 = v + sz + sy;
+
+							PositionTextureVertex vertex0{x0, y0, z0};
+							PositionTextureVertex vertex1{x0, y1, z0};
+							PositionTextureVertex vertex2{x1, y1, z0};
+							PositionTextureVertex vertex3{x1, y0, z0};
+
+							PositionTextureVertex vertex4{x1, y1, z1};
+							PositionTextureVertex vertex5{x1, y0, z1};
+							PositionTextureVertex vertex6{x0, y1, z1};
+							PositionTextureVertex vertex7{x0, y0, z1};
+
+							TexturedQuad quad0({ vertex0, vertex1, vertex2, vertex3 }, u1, v1, u2, v2, texture_width, texture_height, {0, 0, -1});
+							TexturedQuad quad1({ vertex3, vertex2, vertex4, vertex5 }, u0, v1, u1, v2, texture_width, texture_height, {1, 0, 0});
+							TexturedQuad quad2({ vertex5, vertex4, vertex6, vertex7 }, u4, v1, u5, v2, texture_width, texture_height, {0, 0, 1});
+							TexturedQuad quad3({ vertex7, vertex6, vertex1, vertex0 }, u0, v1, u1, v2, texture_width, texture_height, {-1, 0, 0});
+							TexturedQuad quad4({ vertex1, vertex6, vertex4, vertex2 }, u1, v0, u2, v1, texture_width, texture_height, {0, 1, 0});
+							TexturedQuad quad5({ vertex7, vertex0, vertex3, vertex5 }, u2, v0, u3, v1, texture_width, texture_height, {0, -1, 0});
+
+							ModelBox cube {
+								.quads { quad0, quad1, quad2, quad3, quad4, quad5 }
+							};
+
+							for (auto&& quad : cube.quads) {
+								auto normal = quad._normal;
+
+								_builder.addQuad(0, 1, 2, 0, 2, 3);
+								for (auto&& vertex : quad._vertices) {
+									_builder.vertices.emplace_back(
+										vertex.x, vertex.y, vertex.z,
+										vertex.u, vertex.v,
+										normal.x, normal.y, normal.z
+									);
+								}
+							}
+						}
 					}
 				}
+
+				_buffer.SetIndexBufferSize(sizeof(int) * _builder.indices.size());
+				_buffer.SetVertexBufferSize(sizeof(Vertex) * _builder.vertices.size());
+
+				_buffer.SetIndexBufferData(_builder.indices.data(), 0, 0, sizeof(int) * _builder.indices.size());
+				_buffer.SetVertexBufferData(_builder.vertices.data(), 0, 0, sizeof(Vertex) * _builder.vertices.size());
 			}
-		}
-
-//		_builder.addCube(-0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f);
-
-		_buffer.SetIndexBufferSize(sizeof(int) * _builder.indices.size());
-		_buffer.SetVertexBufferSize(sizeof(Vertex) * _builder.vertices.size());
-
-		_buffer.SetIndexBufferData(_builder.indices.data(), 0, 0, sizeof(int) * _builder.indices.size());
-		_buffer.SetVertexBufferData(_builder.vertices.data(), 0, 0, sizeof(Vertex) * _builder.vertices.size());
+		});
 	}
 
 	float rotationYaw{0};
@@ -649,6 +626,7 @@ struct Renderer {
 		};
 
 		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
+		cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
 		cmd.pushConstants(_pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(CameraUniform), &uniform);
 		cmd.bindVertexBuffers(0, 1, vertexBuffers, &offset);
 		cmd.bindIndexBuffer(_buffer.IndexBuffer, 0, vk::IndexType::eUint32);
@@ -657,14 +635,15 @@ struct Renderer {
 	}
 
 	void terminate() {
-		core->device().destroyPipelineLayout(_pipelineLayout);
-		core->device().destroyPipeline(_pipeline);
+		core->device().destroyPipelineLayout(_pipelineLayout, nullptr);
+		core->device().destroyPipeline(_pipeline, nullptr);
 		_buffer.destroy();
 	}
 };
 
 struct Application {
 	RenderSystem* core = RenderSystem::Get();
+//	CommandPool _commandPool;
 
 	Window window;
 	Input input;
@@ -672,42 +651,17 @@ struct Application {
 
 	ResourceManager resourceManager{"assets"};
 
-	vk::DescriptorPool _descriptorPool;
+	DescriptorPool _descriptorPool;
 	Renderer _renderer;
 
 	Application() {
 		window.create(1280, 720, "Vulkan");
 		input.SetWindow(window.handle());
 
-		glfwSetWindowUserPointer(window.handle(), this);
-		glfwSetWindowSizeCallback(window.handle(), [](GLFWwindow *window, int width, int height) {
-			static_cast<Application*>(glfwGetWindowUserPointer(window))->handleWindowResize(width, height);
-		});
-		glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow *window, int width, int height) {
-			static_cast<Application*>(glfwGetWindowUserPointer(window))->handleFramebufferResize(width, height);
-		});
-		glfwSetWindowIconifyCallback(window.handle(), [](GLFWwindow *window, int iconified) {
-			static_cast<Application*>(glfwGetWindowUserPointer(window))->handleIconify(iconified);
-		});
-		glfwSetKeyCallback(window.handle(), [](GLFWwindow *window, int key, int scancode, int action, int mods) {
-			static_cast<Application *>(glfwGetWindowUserPointer(window))->keyCallback(key, scancode, action, mods);
-		});
-		glfwSetMouseButtonCallback(window.handle(), [](GLFWwindow *window, int mouseButton, int action, int mods) {
-			static_cast<Application *>(glfwGetWindowUserPointer(window))->mouseButtonCallback(mouseButton, action, mods);
-		});
-		glfwSetCursorPosCallback(window.handle(), [](GLFWwindow *window, double xpos, double ypos) {
-			static_cast<Application *>(glfwGetWindowUserPointer(window))->cursorPosCallback(xpos, ypos);
-		});
-		glfwSetScrollCallback(window.handle(), [](GLFWwindow *window, double xoffset, double yoffset) {
-			static_cast<Application *>(glfwGetWindowUserPointer(window))->scrollCallback(xoffset, yoffset);
-		});
-		glfwSetCharCallback(window.handle(), [](GLFWwindow* window, unsigned int c) {
-			static_cast<Application *>(glfwGetWindowUserPointer(window))->charCallback(c);
-		});
+		registerCallbacks();
 
 		core->initialize(window.handle());
 
-		_depthFormat = core->getSupportedDepthFormat();
 
 		createSwapchain();
 		createRenderPass();
@@ -728,15 +682,10 @@ struct Application {
 				{vk::DescriptorType::eInputAttachment, 1000}
 		};
 
-		vk::DescriptorPoolCreateInfo descriptor_pool_create_info {
-			.maxSets = 1000,
-			.poolSizeCount = std::size(pool_sizes),
-			.pPoolSizes = pool_sizes
-		};
-		_descriptorPool = core->device().createDescriptorPool(descriptor_pool_create_info, nullptr);
+		_descriptorPool = DescriptorPool::create(1000, pool_sizes);
 
 		_renderer.initialize(window, input, resourceManager, _descriptorPool, _renderPass);
-		_gui.initialize(window.handle(), _renderPass, _frameCount);
+//		_gui.initialize(window.handle(), _renderPass, _frameCount);
 	}
 
 	~Application() {
@@ -748,15 +697,15 @@ struct Application {
 		for (uint32_t i = 0; i < _frameCount; i++) {
 			core->device().destroyFramebuffer(_framebuffers[i], nullptr);
 			core->device().destroyImageView(_swapchainImageViews[i], nullptr);
-			core->device().destroyImageView(_depthImageViews[i]);
+			core->device().destroyImageView(_depthImageViews[i], nullptr);
 			_depthImages[i].destroy();
 
 			_commandPools[i].free(_commandBuffers[i]);
 			_commandPools[i].destroy();
 
 			core->device().destroyFence(_fences[i], nullptr);
-			core->device().destroySemaphore(_imageAcquiredSemaphore[i]);
-			core->device().destroySemaphore(_renderCompleteSemaphore[i]);
+			core->device().destroySemaphore(_imageAcquiredSemaphore[i], nullptr);
+			core->device().destroySemaphore(_renderCompleteSemaphore[i], nullptr);
 		}
 
 		core->device().destroyRenderPass(_renderPass, nullptr);
@@ -776,12 +725,12 @@ struct Application {
 
 			_renderer.update(clock);
 
-			_gui.begin();
-			_gui.end();
+//			_gui.begin();
+//			_gui.end();
 
 			auto cmd = begin();
 			_renderer.draw(cmd);
-			_gui.draw(cmd);
+//			_gui.draw(cmd);
 			end();
 
 		}
@@ -908,6 +857,8 @@ private:
 	}
 
 	void createRenderPass() {
+		_depthFormat = core->getSupportedDepthFormat();
+
 		vk::AttachmentDescription attachments[]{
 				vk::AttachmentDescription{
 						{},
@@ -1127,12 +1078,12 @@ private:
 	void handleIconify(int iconified) {}
 
 	void keyCallback(int key, int scancode, int action, int mods) {
-		_gui.keyCallback(key, scancode, action, mods);
+//		_gui.keyCallback(key, scancode, action, mods);
 		input.handleKeyInput(key, scancode, action, mods);
 	}
 
 	void mouseButtonCallback(int mouseButton, int action, int mods) {
-		_gui.mouseButtonCallback(mouseButton, action, mods);
+//		_gui.mouseButtonCallback(mouseButton, action, mods);
 		input.handleMouseButton(mouseButton, action, mods);
 	}
 
@@ -1141,11 +1092,40 @@ private:
 	}
 
 	void scrollCallback(double xoffset, double yoffset) {
-		_gui.scrollCallback(xoffset, yoffset);
+//		_gui.scrollCallback(xoffset, yoffset);
 	}
 
 	void charCallback(unsigned int c) {
-		_gui.charCallback(c);
+//		_gui.charCallback(c);
+	}
+
+private:
+	void registerCallbacks() {
+		glfwSetWindowUserPointer(window.handle(), this);
+		glfwSetWindowSizeCallback(window.handle(), [](GLFWwindow *window, int width, int height) {
+			static_cast<Application*>(glfwGetWindowUserPointer(window))->handleWindowResize(width, height);
+		});
+		glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow *window, int width, int height) {
+			static_cast<Application*>(glfwGetWindowUserPointer(window))->handleFramebufferResize(width, height);
+		});
+		glfwSetWindowIconifyCallback(window.handle(), [](GLFWwindow *window, int iconified) {
+			static_cast<Application*>(glfwGetWindowUserPointer(window))->handleIconify(iconified);
+		});
+		glfwSetKeyCallback(window.handle(), [](GLFWwindow *window, int key, int scancode, int action, int mods) {
+			static_cast<Application *>(glfwGetWindowUserPointer(window))->keyCallback(key, scancode, action, mods);
+		});
+		glfwSetMouseButtonCallback(window.handle(), [](GLFWwindow *window, int mouseButton, int action, int mods) {
+			static_cast<Application *>(glfwGetWindowUserPointer(window))->mouseButtonCallback(mouseButton, action, mods);
+		});
+		glfwSetCursorPosCallback(window.handle(), [](GLFWwindow *window, double xpos, double ypos) {
+			static_cast<Application *>(glfwGetWindowUserPointer(window))->cursorPosCallback(xpos, ypos);
+		});
+		glfwSetScrollCallback(window.handle(), [](GLFWwindow *window, double xoffset, double yoffset) {
+			static_cast<Application *>(glfwGetWindowUserPointer(window))->scrollCallback(xoffset, yoffset);
+		});
+		glfwSetCharCallback(window.handle(), [](GLFWwindow* window, unsigned int c) {
+			static_cast<Application *>(glfwGetWindowUserPointer(window))->charCallback(c);
+		});
 	}
 
 private:

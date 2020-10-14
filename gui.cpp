@@ -159,8 +159,6 @@ void GUI::initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCou
 	style.PopupRounding = 0.0f;
 	style.ScrollbarRounding = 0.0f;
 
-	_commandPool = vkx::createCommandPool(RenderSystem::Get()->graphicsFamily(), vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
-
 	vk::DescriptorPoolSize pool_sizes[] = {
 			{vk::DescriptorType::eSampler, 1000},
 			{vk::DescriptorType::eCombinedImageSampler, 1000},
@@ -180,10 +178,10 @@ void GUI::initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCou
 		.poolSizeCount = std::size(pool_sizes),
 		.pPoolSizes = pool_sizes
 	};
-	_descriptorPool = RenderSystem::Get()->device().createDescriptorPool(descriptor_pool_create_info, nullptr);
+	_descriptorPool = DescriptorPool::create(1000, pool_sizes);
 
-	auto vert_module = RenderSystem::Get()->device().createShaderModule({ .codeSize = sizeof(__glsl_shader_vert_spv), .pCode = __glsl_shader_vert_spv }, nullptr);
-	auto frag_module = RenderSystem::Get()->device().createShaderModule({ .codeSize = sizeof(__glsl_shader_frag_spv), .pCode = __glsl_shader_frag_spv }, nullptr);
+	auto vert_module = core->device().createShaderModule({ .codeSize = sizeof(__glsl_shader_vert_spv), .pCode = __glsl_shader_vert_spv }, nullptr);
+	auto frag_module = core->device().createShaderModule({ .codeSize = sizeof(__glsl_shader_frag_spv), .pCode = __glsl_shader_frag_spv }, nullptr);
 
 	vk::SamplerCreateInfo sampler_create_info {
 		.magFilter = vk::Filter::eLinear,
@@ -197,7 +195,7 @@ void GUI::initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCou
 		.maxLod = 1000
 	};
 
-	_fontSampler = RenderSystem::Get()->device().createSampler(sampler_create_info, nullptr);
+	_fontSampler = core->device().createSampler(sampler_create_info, nullptr);
 
 	vk::DescriptorSetLayoutBinding descriptor_set_layout_binding {
 		.binding = 0,
@@ -211,8 +209,8 @@ void GUI::initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCou
 		.bindingCount = 1,
 		.pBindings = &descriptor_set_layout_binding
 	};
-	_fontDescriptorSetLayout = RenderSystem::Get()->device().createDescriptorSetLayout(descriptor_set_layout_create_info, nullptr);
-	_fontDescriptor = vkx::allocate(_descriptorPool, _fontDescriptorSetLayout);
+	_fontDescriptorSetLayout = core->device().createDescriptorSetLayout(descriptor_set_layout_create_info, nullptr);
+	_fontDescriptor = _descriptorPool.allocate(_fontDescriptorSetLayout);
 
 	vk::PushConstantRange push_constant {
 		vk::ShaderStageFlagBits::eVertex, 0, sizeof(float[4])
@@ -224,7 +222,7 @@ void GUI::initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCou
 		.pushConstantRangeCount = 1,
 		.pPushConstantRanges = &push_constant
 	};
-	_pipelineLayout = RenderSystem::Get()->device().createPipelineLayout(pipeline_layout_create_info, nullptr);
+	_pipelineLayout = core->device().createPipelineLayout(pipeline_layout_create_info, nullptr);
 
 	vk::PipelineShaderStageCreateInfo stages[2] = {
 			{ .stage = vk::ShaderStageFlagBits::eVertex, .module = vert_module, .pName = "main" },
@@ -317,95 +315,95 @@ void GUI::initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCou
 		.renderPass = renderPass,
 	};
 
-	RenderSystem::Get()->device().createGraphicsPipelines(nullptr, 1, &pipeline_create_info, nullptr, &_pipeline);
-	RenderSystem::Get()->device().destroyShaderModule(vert_module, nullptr);
-	RenderSystem::Get()->device().destroyShaderModule(frag_module, nullptr);
+	core->device().createGraphicsPipelines(nullptr, 1, &pipeline_create_info, nullptr, &_pipeline);
+	core->device().destroyShaderModule(vert_module, nullptr);
+	core->device().destroyShaderModule(frag_module, nullptr);
 
 	createFontsTexture();
 }
 
 void GUI::createFontsTexture() {
-	auto cmd = vkx::allocate(_commandPool, vk::CommandBufferLevel::ePrimary);
-	cmd.begin({ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-
-	ImGuiIO &io = ImGui::GetIO();
-
-	unsigned char *pixels;
-	int width, height;
-	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-	size_t upload_size = width * height * 4 * sizeof(char);
-
-	_fontTexture = Texture::create2D(vk::Format::eR8G8B8A8Unorm, width, height, _fontSampler);
-	_fontTexture.updateDescriptorSet(_fontDescriptor);
-
-	vk::BufferCreateInfo srcBufferCreateInfo { .size = upload_size, .usage = vk::BufferUsageFlagBits::eTransferSrc };
-
-	auto srcBuffer = Buffer::create(srcBufferCreateInfo, { .usage = VMA_MEMORY_USAGE_CPU_ONLY });
-	std::memcpy(srcBuffer.map(), pixels, upload_size);
-	srcBuffer.unmap();
-
-	// Copy to Image:
-	{
-		vk::ImageMemoryBarrier copy_barrier {
-			.dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-			.oldLayout = vk::ImageLayout::eUndefined,
-			.newLayout = vk::ImageLayout::eTransferDstOptimal,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image = _fontTexture.image,
-			.subresourceRange {
-				.aspectMask = vk::ImageAspectFlagBits::eColor,
-				.levelCount = 1,
-				.layerCount = 1
-			}
-		};
-
-		cmd.pipelineBarrier(vk::PipelineStageFlagBits::eHost, vk::PipelineStageFlagBits::eTransfer, {}, 0, nullptr, 0, nullptr, 1, &copy_barrier);
-
-		vk::BufferImageCopy region {
-			.imageSubresource {
-				.aspectMask = vk::ImageAspectFlagBits::eColor,
-				.layerCount = 1
-			},
-			.imageExtent = {
-				.width = static_cast<uint32_t>(width),
-				.height = static_cast<uint32_t>(height),
-				.depth = 1
-			}
-		};
-
-		cmd.copyBufferToImage(srcBuffer, _fontTexture.image, vk::ImageLayout::eTransferDstOptimal, 1, &region);
-
-		vk::ImageMemoryBarrier use_barrier {
-			.srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-			.dstAccessMask = vk::AccessFlagBits::eShaderRead,
-			.oldLayout = vk::ImageLayout::eTransferDstOptimal,
-			.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image = _fontTexture.image,
-			.subresourceRange = {
-				.aspectMask = vk::ImageAspectFlagBits::eColor,
-				.levelCount = 1,
-				.layerCount = 1,
-			}
-		};
-
-		cmd.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, {}, 0, nullptr, 0, nullptr, 1, &use_barrier);
-	}
-
-	io.Fonts->TexID = (ImTextureID) (VkDescriptorSet) _fontDescriptor;
-
-	cmd.end();
-
-	vk::SubmitInfo submitInfo;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &cmd;
-
-	RenderSystem::Get()->graphicsQueue().submit(1, &submitInfo, nullptr);
-	RenderSystem::Get()->graphicsQueue().waitIdle();
-
-	srcBuffer.destroy();
+//	auto cmd = vkx::allocate(_commandPool, vk::CommandBufferLevel::ePrimary);
+//	cmd.begin({ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+//
+//	ImGuiIO &io = ImGui::GetIO();
+//
+//	unsigned char *pixels;
+//	int width, height;
+//	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+//	size_t upload_size = width * height * 4 * sizeof(char);
+//
+//	_fontTexture = Texture::create2D(vk::Format::eR8G8B8A8Unorm, width, height, _fontSampler);
+//	_fontTexture.updateDescriptorSet(_fontDescriptor);
+//
+//	// Copy to Image:
+//	{
+//		vk::BufferCreateInfo srcBufferCreateInfo { .size = upload_size, .usage = vk::BufferUsageFlagBits::eTransferSrc };
+//
+//		auto srcBuffer = Buffer::create(srcBufferCreateInfo, { .usage = VMA_MEMORY_USAGE_CPU_ONLY });
+//		std::memcpy(srcBuffer.map(), pixels, upload_size);
+//		srcBuffer.unmap();
+//
+//		vk::ImageMemoryBarrier copy_barrier {
+//			.dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+//			.oldLayout = vk::ImageLayout::eUndefined,
+//			.newLayout = vk::ImageLayout::eTransferDstOptimal,
+//			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+//			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+//			.image = _fontTexture.image,
+//			.subresourceRange {
+//				.aspectMask = vk::ImageAspectFlagBits::eColor,
+//				.levelCount = 1,
+//				.layerCount = 1
+//			}
+//		};
+//
+//		cmd.pipelineBarrier(vk::PipelineStageFlagBits::eHost, vk::PipelineStageFlagBits::eTransfer, {}, 0, nullptr, 0, nullptr, 1, &copy_barrier);
+//
+//		vk::BufferImageCopy region {
+//			.imageSubresource {
+//				.aspectMask = vk::ImageAspectFlagBits::eColor,
+//				.layerCount = 1
+//			},
+//			.imageExtent = {
+//				.width = static_cast<uint32_t>(width),
+//				.height = static_cast<uint32_t>(height),
+//				.depth = 1
+//			}
+//		};
+//
+//		cmd.copyBufferToImage(srcBuffer, _fontTexture.image, vk::ImageLayout::eTransferDstOptimal, 1, &region);
+//
+//		vk::ImageMemoryBarrier use_barrier {
+//			.srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+//			.dstAccessMask = vk::AccessFlagBits::eShaderRead,
+//			.oldLayout = vk::ImageLayout::eTransferDstOptimal,
+//			.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+//			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+//			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+//			.image = _fontTexture.image,
+//			.subresourceRange = {
+//				.aspectMask = vk::ImageAspectFlagBits::eColor,
+//				.levelCount = 1,
+//				.layerCount = 1,
+//			}
+//		};
+//
+//		cmd.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, {}, 0, nullptr, 0, nullptr, 1, &use_barrier);
+//
+//		cmd.end();
+//
+//		vk::SubmitInfo submitInfo{
+//			.commandBufferCount = 1,
+//			.pCommandBuffers = &cmd
+//		};
+//		core->graphicsQueue().submit(1, &submitInfo, nullptr);
+//		core->graphicsQueue().waitIdle();
+//
+//		srcBuffer.destroy();
+//	}
+//
+//	io.Fonts->TexID = (ImTextureID) (VkDescriptorSet) _fontDescriptor;
 }
 
 void GUI::terminate() {
@@ -423,11 +421,13 @@ void GUI::terminate() {
 	_renderBuffers.clear();
 	_fontTexture.destroy();
 
-	RenderSystem::Get()->device().destroyDescriptorPool(_descriptorPool, nullptr);
-	RenderSystem::Get()->device().destroySampler(_fontSampler, nullptr);
-	RenderSystem::Get()->device().destroyDescriptorSetLayout(_fontDescriptorSetLayout, nullptr);
-	RenderSystem::Get()->device().destroyPipelineLayout(_pipelineLayout, nullptr);
-	RenderSystem::Get()->device().destroyPipeline(_pipeline, nullptr);
+	_descriptorPool.free(_fontDescriptor);
+	_descriptorPool.destroy();
+
+	core->device().destroySampler(_fontSampler, nullptr);
+	core->device().destroyDescriptorSetLayout(_fontDescriptorSetLayout, nullptr);
+	core->device().destroyPipelineLayout(_pipelineLayout, nullptr);
+	core->device().destroyPipeline(_pipeline, nullptr);
 }
 
 void GUI::begin() {

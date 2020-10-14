@@ -35,8 +35,8 @@ function(add_shaders TARGET)
 endfunction()
 
 add_shaders(shaders
-    assets/default.frag
-    assets/default.vert
+        assets/shaders/default.frag
+        assets/shaders/default.vert
 )
 
 add_library(imgui STATIC

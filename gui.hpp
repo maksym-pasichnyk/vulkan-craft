@@ -2,9 +2,10 @@
 
 #include <imgui/imgui.h>
 
-#include "CommandPool.hpp"
 #include "Texture.hpp"
 #include "RenderBuffer.hpp"
+#include "CommandPool.hpp"
+#include "DescriptorPool.hpp"
 
 struct GUI {
 	void initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCount);
@@ -40,6 +41,8 @@ private:
 	void updateGamepads();
 
 private:
+	RenderSystem* core = RenderSystem::Get();
+
 	GLFWwindow* _window;
 
 	vk::DescriptorSetLayout _fontDescriptorSetLayout;
@@ -51,8 +54,7 @@ private:
 	vk::Sampler _fontSampler;
 	Texture _fontTexture;
 
-	vk::DescriptorPool _descriptorPool;
-	vk::CommandPool _commandPool;
+	DescriptorPool _descriptorPool;
 
 	uint32_t _frameIndex;
 	uint32_t _frameCount;

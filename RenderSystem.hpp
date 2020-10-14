@@ -17,9 +17,9 @@ struct RenderSystem {
 			.engineVersion = VK_MAKE_VERSION(1, 0, 0),
 			.apiVersion = VK_API_VERSION_1_2
 	};
-	inline static constexpr const char *enabledLayers[] = {
-			"VK_LAYER_KHRONOS_validation"
-	};
+//	inline static constexpr const char *enabledLayers[0] = {
+//			"VK_LAYER_KHRONOS_validation"
+//	};
 
 	inline static constexpr const char *device_extensions[] = {
 			VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -47,8 +47,8 @@ struct RenderSystem {
 
 		vk::InstanceCreateInfo instanceCreateInfo {
 				.pApplicationInfo = &appInfo,
-				.enabledLayerCount = std::size(enabledLayers),
-				.ppEnabledLayerNames = std::data(enabledLayers),
+//				.enabledLayerCount = std::size(enabledLayers),
+//				.ppEnabledLayerNames = std::data(enabledLayers),
 				.enabledExtensionCount = uint32_t(extensions.size()),
 				.ppEnabledExtensionNames = extensions.data(),
 		};
@@ -95,8 +95,8 @@ struct RenderSystem {
 		vk::DeviceCreateInfo deviceCreateInfo {
 			.queueCreateInfoCount = uint32_t(std::size(queueCreateInfos)),
 			.pQueueCreateInfos = std::data(queueCreateInfos),
-			.enabledLayerCount = std::size(enabledLayers),
-			.ppEnabledLayerNames = std::data(enabledLayers),
+//			.enabledLayerCount = std::size(enabledLayers),
+//			.ppEnabledLayerNames = std::data(enabledLayers),
 			.enabledExtensionCount = std::size(device_extensions),
 			.ppEnabledExtensionNames = std::data(device_extensions),
 			.pEnabledFeatures = &features
@@ -120,10 +120,10 @@ struct RenderSystem {
 	void terminate() {
 		vmaDestroyAllocator(_allocator);
 
-		_device.destroy();
+		_device.destroy(nullptr);
 
-		_instance.destroySurfaceKHR(_surface);
-		_instance.destroy();
+		_instance.destroySurfaceKHR(_surface, nullptr);
+		_instance.destroy(nullptr);
 	}
 
 private:

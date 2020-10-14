@@ -14,6 +14,44 @@ namespace json {
 	struct Value : /*private*/ std::variant<int64_t, uint64_t, double, std::string, bool, Array, Object, Null> {
 		using variant::variant;
 
+		int64_t i64() {
+			switch (index()) {
+			case 0:
+				return std::get<int64_t>(*this);
+			case 1:
+				return (int64_t) std::get<uint64_t>(*this);
+			default:
+				return (int64_t) std::get<double>(*this);
+			}
+		}
+
+		double f64() {
+			switch (index()) {
+			case 0:
+				return (double) std::get<int64_t>(*this);
+			case 1:
+				return (double) std::get<uint64_t>(*this);
+			default:
+				return std::get<double>(*this);
+			}
+		}
+
+		std::string_view string() {
+			return std::get<std::string>(*this);
+		}
+
+		bool as_bool() {
+			return std::get<bool>(*this);
+		}
+
+		Array& array() {
+			return std::get<Array>(*this);
+		}
+
+		Object& object() {
+			return std::get<Object>(*this);
+		}
+
 		bool is_number() const {
 			switch (index()) {
 			case 0: case 1: case 2:
@@ -206,7 +244,11 @@ namespace json {
 
 			while (!eof()) {
 				switch (*data) {
-				case ' ': case '\n': case '\t': case '\r': getc(); continue;
+				case '\n':
+					line++;
+					getc();
+					continue;
+				case ' ':  case '\t': case '\r': getc(); continue;
 				case '"': {
 					getc();
 					auto s = data;
@@ -297,6 +339,7 @@ namespace json {
 
 		void expect(TokenType tt) {
 			if (_token.type != tt) {
+				std::cout << "unexpected token: " << line << std::endl;
 				error();
 			}
 		}
@@ -316,5 +359,6 @@ namespace json {
 		const char *data;
 		const char *last;
 		Token _token;
+		int line = 0;
 	};
 }

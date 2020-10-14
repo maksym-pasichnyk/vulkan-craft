@@ -2,24 +2,37 @@
 
 #include "RenderSystem.hpp"
 
-namespace vkx {
-	inline vk::DescriptorPool createDescriptorPool(uint32_t maxSets, span<const vk::DescriptorPoolSize> poolSizes) {
-		vk::DescriptorPoolCreateInfo createInfo;
-		createInfo.maxSets = maxSets;
-		createInfo.poolSizeCount = std::size(poolSizes);
-		createInfo.pPoolSizes = std::data(poolSizes);
 
-		return RenderSystem::Get()->device().createDescriptorPool(createInfo, nullptr);
+struct DescriptorPool {
+	vk::DescriptorPool _descriptorPool;
+
+	inline static DescriptorPool create(uint32_t maxSets, span<const vk::DescriptorPoolSize> poolSizes) {
+		vk::DescriptorPoolCreateInfo createInfo {
+			.maxSets = maxSets,
+			.poolSizeCount = std::size(poolSizes),
+			.pPoolSizes = std::data(poolSizes)
+		};
+
+		return {RenderSystem::Get()->device().createDescriptorPool(createInfo, nullptr)};
 	}
 
-	inline vk::DescriptorSet allocate(vk::DescriptorPool descriptorPool, vk::DescriptorSetLayout setLayout) {
-		vk::DescriptorSetAllocateInfo allocateInfo;
-		allocateInfo.descriptorPool = descriptorPool;
-		allocateInfo.descriptorSetCount = 1;
-		allocateInfo.pSetLayouts = &setLayout;
+	inline vk::DescriptorSet allocate(vk::DescriptorSetLayout setLayout) {
+		vk::DescriptorSetAllocateInfo allocateInfo {
+			.descriptorPool = _descriptorPool,
+			.descriptorSetCount = 1,
+			.pSetLayouts = &setLayout
+		};
 
 		vk::DescriptorSet descriptorSet;
 		RenderSystem::Get()->device().allocateDescriptorSets(&allocateInfo, &descriptorSet);
 		return descriptorSet;
 	}
-}
+
+	inline void free(vk::DescriptorSet descriptorSet) {
+		RenderSystem::Get()->device().freeDescriptorSets(_descriptorPool, 1, &descriptorSet);
+	}
+
+	inline void destroy() {
+		RenderSystem::Get()->device().destroyDescriptorPool(_descriptorPool, nullptr);
+	}
+};
