@@ -72,9 +72,13 @@ add_executable(vcraft
     Texture.hpp
     DescriptorPool.hpp
     Input.hpp
-    Window.hpp
+    GameWindow.hpp
     Clock.hpp
-    Json.hpp)
+    Json.hpp
+    Mouse.hpp
+    Keyboard.hpp
+    ModelRenderer.hpp
+    VertexBuilder.hpp)
 
 target_link_libraries(vcraft glfw vulkan imgui)
 add_dependencies(vcraft shaders)

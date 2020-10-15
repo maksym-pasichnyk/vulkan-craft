@@ -7,11 +7,12 @@
 
 namespace json {
 	struct Value;
+	using Span = std::span<Value>;
 	using Array = std::vector<Value>;
 	using Object = std::map<std::string, Value>;
 	using Null = struct {};
 
-	struct Value : /*private*/ std::variant<int64_t, uint64_t, double, std::string, bool, Array, Object, Null> {
+	struct Value : private std::variant<int64_t, uint64_t, double, std::string, bool, Array, Object, Null> {
 		using variant::variant;
 
 		int64_t i64() {
@@ -36,7 +37,11 @@ namespace json {
 			}
 		}
 
-		std::string_view string() {
+		std::string& string() {
+			return std::get<std::string>(*this);
+		}
+
+		std::string_view string_view() {
 			return std::get<std::string>(*this);
 		}
 
@@ -45,6 +50,10 @@ namespace json {
 		}
 
 		Array& array() {
+			return std::get<Array>(*this);
+		}
+
+		Span array_view() {
 			return std::get<Array>(*this);
 		}
 
@@ -339,7 +348,7 @@ namespace json {
 
 		void expect(TokenType tt) {
 			if (_token.type != tt) {
-				std::cout << "unexpected token: " << line << std::endl;
+//				std::cout << "unexpected token: " << line << std::endl;
 				error();
 			}
 		}
