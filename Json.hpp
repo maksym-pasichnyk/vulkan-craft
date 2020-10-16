@@ -4,6 +4,7 @@
 #include <string_view>
 #include <vector>
 #include <variant>
+#include <optional>
 
 namespace json {
 	struct Value;
@@ -12,10 +13,50 @@ namespace json {
 	using Object = std::map<std::string, Value>;
 	using Null = struct {};
 
+	template <typename T>
+	struct Result {
+		constexpr Result(std::nullopt_t) : storage(std::nullopt) {}
+		constexpr Result(T& ref) : storage(std::addressof(ref)) {}
+
+		template <typename U>
+		constexpr T value_or(U&& arg) {
+			if (storage.has_value()) {
+				return **storage;
+			}
+			return std::forward<T>(arg);
+		}
+
+		constexpr operator bool() const {
+			return storage.has_value();
+		}
+
+		constexpr bool has_value() const {
+			return storage.has_value();
+		}
+
+		constexpr T& value() {
+			return *storage.value();
+		}
+
+		constexpr const T& value() const {
+			return *storage.value();
+		}
+
+		constexpr T* operator->() {
+			return std::addressof(**storage);
+		}
+
+		constexpr const T* operator->() const {
+			return std::addressof(**storage);
+		}
+	private:
+		std::optional<T*> storage;
+	};
+
 	struct Value : private std::variant<int64_t, uint64_t, double, std::string, bool, Array, Object, Null> {
 		using variant::variant;
 
-		int64_t i64() {
+		std::optional<int64_t> as_i64() {
 			switch (index()) {
 			case 0:
 				return std::get<int64_t>(*this);
@@ -26,7 +67,7 @@ namespace json {
 			}
 		}
 
-		double f64() {
+		std::optional<double> as_f64() {
 			switch (index()) {
 			case 0:
 				return (double) std::get<int64_t>(*this);
@@ -37,28 +78,37 @@ namespace json {
 			}
 		}
 
-		std::string& string() {
-			return std::get<std::string>(*this);
+		Result<std::string> as_string() & {
+			return get_opt_ref<std::string>(this);
 		}
 
-		std::string_view string_view() {
-			return std::get<std::string>(*this);
+		Result<bool> as_bool() & {
+			return get_opt_ref<bool>(this);
 		}
 
-		bool as_bool() {
-			return std::get<bool>(*this);
+		Result<Array> as_array() & {
+			return get_opt_ref<Array>(this);
 		}
 
-		Array& array() {
-			return std::get<Array>(*this);
+		std::optional<Array> as_array() && {
+			return get_opt<Array>(this);
 		}
 
-		Span array_view() {
-			return std::get<Array>(*this);
+		Result<Object> as_object() & {
+			return get_opt_ref<Object>(this);
 		}
 
-		Object& object() {
-			return std::get<Object>(*this);
+		std::optional<Object> as_object() && {
+			return get_opt<Object>(this);
+		}
+
+		Result<Value> get(const std::string& key) & {
+			auto& obj = as_object().value();
+			auto it = obj.find(key);
+			if (it == obj.end()) {
+				return std::nullopt;
+			}
+			return it->second;
 		}
 
 		bool is_number() const {
@@ -114,6 +164,26 @@ namespace json {
 				return false;
 			}
 		}
+
+	private:
+		template<typename _Tp, typename... _Types>
+		inline static Result<_Tp> get_opt_ref(std::variant<_Types...>* __ptr) noexcept {
+			static constexpr size_t _Np = std::__detail::__variant::__index_of_v<_Tp, _Types...>;
+			if (__ptr->index() != _Np) {
+				return std::nullopt;
+			}
+			return std::__detail::__variant::__get<_Np>(*__ptr);
+		}
+
+
+		template<typename _Tp, typename... _Types>
+		inline static std::optional<_Tp> get_opt(std::variant<_Types...>* __ptr) noexcept {
+			static constexpr size_t _Np = std::__detail::__variant::__index_of_v<_Tp, _Types...>;
+			if (__ptr->index() != _Np) {
+				return std::nullopt;
+			}
+			return std::move(std::__detail::__variant::__get<_Np>(*__ptr));
+		}
 	};
 
 	struct Parser {
@@ -153,7 +223,7 @@ namespace json {
 
 	public:
 		std::optional<Value> parse() {
-			switch (_token.type) {
+			switch (token.type) {
 			case TokenType::Eof:
 				return std::nullopt;
 			case TokenType::String:
@@ -181,10 +251,10 @@ namespace json {
 			next();
 
 			std::map<std::string, Value> ret;
-			while (_token.type != TokenType::ObjectEnd) {
+			while (token.type != TokenType::ObjectEnd) {
 				expect(TokenType::String);
 
-				auto name = _token.string;
+				auto name = token.string;
 
 				next();
 				consume(TokenType::Colon);
@@ -202,7 +272,7 @@ namespace json {
 			next();
 
 			std::vector<Value> ret;
-			while (!_token.is(TokenType::ArrayEnd)) {
+			while (!token.is(TokenType::ArrayEnd)) {
 				ret.push_back(parse().value());
 				if (!skip(TokenType::Comma))
 					break;
@@ -212,25 +282,25 @@ namespace json {
 		}
 
 		float readFloat() {
-			auto ret = std::stof(std::string(_token.string));
+			auto ret = std::stof(std::string(token.string));
 			next();
 			return ret;
 		}
 
 		bool readBool() {
-			auto ret = _token.boolean;
+			auto ret = token.boolean;
 			next();
 			return ret;
 		}
 
 		int readInteger() {
-			auto ret = std::stoi(std::string(_token.string));
+			auto ret = std::stoi(std::string(token.string));
 			next();
 			return ret;
 		}
 
 		std::string readString() {
-			auto ret = _token.string;
+			auto ret = token.string;
 			next();
 			return std::string(ret);
 		}
@@ -249,7 +319,7 @@ namespace json {
 		}
 
 		void next() {
-			_token.type = TokenType::Eof;
+			token.type = TokenType::Eof;
 
 			while (!eof()) {
 				switch (*data) {
@@ -266,8 +336,8 @@ namespace json {
 					}
 					getc();
 
-					_token.type = TokenType::String;
-					_token.string = std::string_view(s, data - s - 1);
+					token.type = TokenType::String;
+					token.string = std::string_view(s, data - s - 1);
 					break;
 				}
 				case 'A'...'Z':
@@ -279,15 +349,15 @@ namespace json {
 					}
 					std::string_view string(s, data - s);
 					if (string == "true") {
-						_token.type = TokenType::Bool;
-						_token.boolean = true;
+						token.type = TokenType::Bool;
+						token.boolean = true;
 					} else if (string == "false") {
-						_token.type = TokenType::Bool;
-						_token.boolean = false;
+						token.type = TokenType::Bool;
+						token.boolean = false;
 					} else if (string == "null") {
-						_token.type = TokenType::Null;
+						token.type = TokenType::Null;
 					} else {
-						_token.type = TokenType::Ident;
+						token.type = TokenType::Ident;
 					}
 					break;
 				}
@@ -308,32 +378,32 @@ namespace json {
 						}
 					}
 
-					_token.type = flag ? TokenType::Float : TokenType::Integer;
-					_token.string = std::string_view(s, data - s);
+					token.type = flag ? TokenType::Float : TokenType::Integer;
+					token.string = std::string_view(s, data - s);
 					break;
 				}
 				case '{':
-					_token.type = TokenType::ObjectStart;
+					token.type = TokenType::ObjectStart;
 					getc();
 					break;
 				case '}':
-					_token.type = TokenType::ObjectEnd;
+					token.type = TokenType::ObjectEnd;
 					getc();
 					break;
 				case '[':
-					_token.type = TokenType::ArrayStart;
+					token.type = TokenType::ArrayStart;
 					getc();
 					break;
 				case ']':
-					_token.type = TokenType::ArrayEnd;
+					token.type = TokenType::ArrayEnd;
 					getc();
 					break;
 				case ':':
-					_token.type = TokenType::Colon;
+					token.type = TokenType::Colon;
 					getc();
 					break;
 				case ',':
-					_token.type = TokenType::Comma;
+					token.type = TokenType::Comma;
 					getc();
 					break;
 				}
@@ -347,14 +417,14 @@ namespace json {
 		}
 
 		void expect(TokenType tt) {
-			if (_token.type != tt) {
+			if (token.type != tt) {
 //				std::cout << "unexpected token: " << line << std::endl;
 				error();
 			}
 		}
 
 		bool skip(TokenType tt) {
-			if (_token.type == tt) {
+			if (token.type == tt) {
 				next();
 				return true;
 			}
@@ -367,7 +437,7 @@ namespace json {
 	private:
 		const char *data;
 		const char *last;
-		Token _token;
+		Token token;
 		int line = 0;
 	};
 }
