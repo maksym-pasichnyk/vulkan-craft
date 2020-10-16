@@ -45,7 +45,7 @@ public:
 		glfwTerminate();
 	}
 
-	bool wantToQuit() {
+	bool shouldClose() {
 		return glfwWindowShouldClose(window);
 	}
 

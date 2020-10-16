@@ -470,6 +470,8 @@ public:
 };
 
 struct AgentEntity {
+	ModelRenderer agentModel;
+
 	AgentEntity(ResourceManager* resourceManager, GameRenderer* renderer) {
 		vk::SamplerCreateInfo samplerCreateInfo{
 				.magFilter = vk::Filter::eNearest,
@@ -695,111 +697,108 @@ struct AgentEntity {
 		resourceManager->loadFile("resource_packs/vanilla/models/mobs.json", [&](std::span<const char> bytes) {
 			json::Parser parser(bytes);
 
-			auto mobs = parser.parse().value().object();
+			auto mobs = parser.parse().value();
 
-			auto obj = mobs.at("geometry.agent");
+			auto mob = mobs.get("geometry.agent");
 			{
-				auto&& mob_cfg = obj.object();
+				int texture_width = mob->get("texturewidth")->as_i64().value();
+				int texture_height = mob->get("textureheight")->as_i64().value();
 
-				int texture_width = mob_cfg.at("texturewidth").i64();
-				int texture_height = mob_cfg.at("textureheight").i64();
+				if (auto bones = mob->get("bones")) {
+					for (auto& bone : bones->as_array().value()) {
+						if (auto cubes = bone.get("cubes")) {
+							for (auto& cube : cubes->as_array().value()) {
+								auto& origin = cube.get("origin").value().as_array().value();
+								auto& size = cube.get("size").value().as_array().value();
+								auto& uv = cube.get("uv").value().as_array().value();
 
-				auto bones_cfg = mob_cfg.at("bones").array_view();
-				for (auto&& bone_obj : bones_cfg) {
-					auto&& bone_cfg = bone_obj.object();
+//								if (!neverRender) {
+									const float posX = origin[0].as_f64().value() / 16.0f;
+									const float posY = origin[1].as_f64().value() / 16.0f;
+									const float posZ = origin[2].as_f64().value() / 16.0f;
 
-					auto name = std::move(bone_cfg.at("name").string());
+									const float sizeX = size[0].as_f64().value();
+									const float sizeY = size[1].as_f64().value();
+									const float sizeZ = size[2].as_f64().value();
 
-					bool neverRender = false;
-					if (bone_cfg.contains("neverRender")) {
-						neverRender = bone_cfg.at("neverRender").as_bool();
-					}
+									const float x0 = posX;
+									const float y0 = posY;
+									const float z0 = posZ;
 
-					if (bone_cfg.contains("cubes")) {
-						auto cubes_cfg = bone_cfg.at("cubes").array_view();
+									const float x1 = posX + sizeX / 16.0f;
+									const float y1 = posY + sizeY / 16.0f;
+									const float z1 = posZ + sizeZ / 16.0f;
 
-						for (auto &&cube_obj : cubes_cfg) {
-							auto &&cube_cfg = cube_obj.object();
-							auto origin = cube_cfg.at("origin").array_view();
-							auto size = cube_cfg.at("size").array_view();
-							auto uv = cube_cfg.at("uv").array_view();
+									const float u = uv[0].as_f64().value();
+									const float v = uv[1].as_f64().value();
 
-							if (!neverRender) {
-								const float ox = origin[0].f64() / 16.0f;
-								const float oy = origin[1].f64() / 16.0f;
-								const float oz = origin[2].f64() / 16.0f;
+									const float u0 = u;
+									const float u1 = u + sizeZ;
+									const float u2 = u + sizeZ + sizeX;
+									const float u3 = u + sizeZ + sizeX + sizeX;
+									const float u4 = u + sizeZ + sizeX + sizeZ;
+									const float u5 = u + sizeZ + sizeX + sizeZ + sizeX;
 
-								const float sx = size[0].f64();
-								const float sy = size[1].f64();
-								const float sz = size[2].f64();
+									const float v0 = v;
+									const float v1 = v + sizeZ;
+									const float v2 = v + sizeZ + sizeY;
 
-								const float x0 = ox;
-								const float y0 = oy;
-								const float z0 = oz;
+									PositionTextureVertex vertex0{x0, y0, z0};
+									PositionTextureVertex vertex1{x0, y1, z0};
+									PositionTextureVertex vertex2{x1, y1, z0};
+									PositionTextureVertex vertex3{x1, y0, z0};
 
-								const float x1 = ox + sx / 16.0f;
-								const float y1 = oy + sy / 16.0f;
-								const float z1 = oz + sz / 16.0f;
+									PositionTextureVertex vertex4{x1, y1, z1};
+									PositionTextureVertex vertex5{x1, y0, z1};
+									PositionTextureVertex vertex6{x0, y1, z1};
+									PositionTextureVertex vertex7{x0, y0, z1};
 
-								const float u = uv[0].f64();
-								const float v = uv[1].f64();
+									TexturedQuad quad0({vertex0, vertex1, vertex2, vertex3}, u1, v1, u2, v2,
+											texture_width, texture_height, {0, 0, -1});
+									TexturedQuad quad1({vertex3, vertex2, vertex4, vertex5}, u1, v1, u0, v2,
+											texture_width, texture_height, {1, 0, 0});
+									TexturedQuad quad2({vertex5, vertex4, vertex6, vertex7}, u4, v1, u5, v2,
+											texture_width, texture_height, {0, 0, 1});
+									TexturedQuad quad3({vertex7, vertex6, vertex1, vertex0}, u0, v1, u1, v2,
+											texture_width, texture_height, {-1, 0, 0});
+									TexturedQuad quad4({vertex1, vertex6, vertex4, vertex2}, u1, v0, u2, v1,
+											texture_width, texture_height, {0, 1, 0});
+									TexturedQuad quad5({vertex7, vertex0, vertex3, vertex5}, u2, v0, u3, v1,
+											texture_width, texture_height, {0, -1, 0});
 
-								const float u0 = u;
-								const float u1 = u + sz;
-								const float u2 = u + sz + sx;
-								const float u3 = u + sz + sx + sx;
-								const float u4 = u + sz + sx + sz;
-								const float u5 = u + sz + sx + sz + sx;
+									ModelBox modelBox{
+											.quads {quad0, quad1, quad2, quad3, quad4, quad5}
+									};
 
-								const float v0 = v;
-								const float v1 = v + sz;
-								const float v2 = v + sz + sy;
-
-								PositionTextureVertex vertex0{x0, y0, z0};
-								PositionTextureVertex vertex1{x0, y1, z0};
-								PositionTextureVertex vertex2{x1, y1, z0};
-								PositionTextureVertex vertex3{x1, y0, z0};
-
-								PositionTextureVertex vertex4{x1, y1, z1};
-								PositionTextureVertex vertex5{x1, y0, z1};
-								PositionTextureVertex vertex6{x0, y1, z1};
-								PositionTextureVertex vertex7{x0, y0, z1};
-
-								TexturedQuad quad0({ vertex0, vertex1, vertex2, vertex3 }, u1, v1, u2, v2, texture_width, texture_height, {0, 0, -1});
-								TexturedQuad quad1({ vertex3, vertex2, vertex4, vertex5 }, u1, v1, u0, v2, texture_width, texture_height, {1, 0, 0});
-								TexturedQuad quad2({ vertex5, vertex4, vertex6, vertex7 }, u4, v1, u5, v2, texture_width, texture_height, {0, 0, 1});
-								TexturedQuad quad3({ vertex7, vertex6, vertex1, vertex0 }, u0, v1, u1, v2, texture_width, texture_height, {-1, 0, 0});
-								TexturedQuad quad4({ vertex1, vertex6, vertex4, vertex2 }, u1, v0, u2, v1, texture_width, texture_height, {0, 1, 0});
-								TexturedQuad quad5({ vertex7, vertex0, vertex3, vertex5 }, u2, v0, u3, v1, texture_width, texture_height, {0, -1, 0});
-
-								ModelBox modelBox {
-									.quads { quad0, quad1, quad2, quad3, quad4, quad5 }
-								};
-
-								for (auto&& quad : modelBox.quads) {
-									auto normal = quad._normal;
-
-									vertexBuilder.addQuad(0, 1, 2, 0, 2, 3);
-									for (auto&& vertex : quad._vertices) {
-										vertexBuilder.vertices.emplace_back(
-											vertex.x, vertex.y, vertex.z,
-											vertex.u, vertex.v,
-											normal.x, normal.y, normal.z
-										);
-									}
-								}
+									agentModel.cubes.push_back(modelBox);
+//								}
 							}
 						}
 					}
 				}
 			}
-
-			renderBuffer.SetIndexBufferSize(sizeof(int) * vertexBuilder.indices.size());
-			renderBuffer.SetVertexBufferSize(sizeof(Vertex) * vertexBuilder.vertices.size());
-
-			renderBuffer.SetIndexBufferData(vertexBuilder.indices.data(), 0, 0, sizeof(int) * vertexBuilder.indices.size());
-			renderBuffer.SetVertexBufferData(vertexBuilder.vertices.data(), 0, 0, sizeof(Vertex) * vertexBuilder.vertices.size());
 		});
+
+		for (auto&& cube : agentModel.cubes) {
+			for (auto&& quad : cube.quads) {
+				auto normal = quad._normal;
+
+				vertexBuilder.addQuad(0, 1, 2, 0, 2, 3);
+				for (auto&& vertex : quad._vertices) {
+					vertexBuilder.vertices.emplace_back(
+						vertex.x, vertex.y, vertex.z,
+						vertex.u, vertex.v,
+						normal.x, normal.y, normal.z
+					);
+				}
+			}
+		}
+
+		renderBuffer.SetIndexBufferSize(sizeof(int) * vertexBuilder.indices.size());
+		renderBuffer.SetVertexBufferSize(sizeof(Vertex) * vertexBuilder.vertices.size());
+
+		renderBuffer.SetIndexBufferData(vertexBuilder.indices.data(), 0, 0, sizeof(int) * vertexBuilder.indices.size());
+		renderBuffer.SetVertexBufferData(vertexBuilder.vertices.data(), 0, 0, sizeof(Vertex) * vertexBuilder.vertices.size());
 	}
 
 	~AgentEntity() {
@@ -836,9 +835,10 @@ struct AgentEntity {
 			renderBuffer.VertexBuffer
 		};
 
-		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 		cmd.setViewport(0, 1, &viewport);
 		cmd.setScissor(0, 1, &scissor);
+
+		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 		cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, 1, &texture.descriptor, 0, nullptr);
 		cmd.pushConstants(pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(CameraTransform), &transform);
 		cmd.bindVertexBuffers(0, 1, vertexBuffers, &offset);
@@ -913,6 +913,13 @@ struct GameClient {
 		renderer->setRenderingSize(width, height);
 	}
 
+	void quit() {
+		wantToQuitFlag = true;
+	}
+
+	bool wantToQuit() {
+		return wantToQuitFlag;
+	}
 private:
 	glm::mat4 rotationMatrix() {
 		float yaw = glm::radians(rotationYaw);
@@ -978,9 +985,229 @@ private:
 	glm::vec3 cameraPosition{0, 1.5f, -2};
 	float rotationYaw{0};
 	float rotationPitch{0};
+
+	bool wantToQuitFlag{false};
 };
 
+struct Resource {
+
+};
+
+struct ResourcePack {
+	std::filesystem::path basePath;
+
+	ResourcePack(std::filesystem::path path) : basePath(std::move(path)) {}
+
+	std::filesystem::path getFullPath(const std::filesystem::path& path) {
+		return basePath / path;
+	}
+
+	template<typename Fn>
+	void LoadResources(const std::filesystem::path& path, Fn&& fn) {
+		for (auto& entry : std::filesystem::directory_iterator(getFullPath(path))) {
+			if (!entry.is_directory()) {
+				std::vector<char> bytes(std::filesystem::file_size(entry.path()));
+
+				std::ifstream file(entry.path(), std::ios::binary);
+				file.read(bytes.data(), bytes.size());
+
+				fn(bytes);
+			}
+		}
+	}
+
+	template<typename Fn>
+	void LoadResource(const std::filesystem::path& path, Fn&& fn) {
+		auto fullPath = getFullPath(path);
+		std::vector<char> bytes(std::filesystem::file_size(fullPath));
+
+		std::ifstream file(fullPath, std::ios::binary);
+		file.read(bytes.data(), bytes.size());
+
+		fn(bytes);
+	}
+
+	template<typename Fn>
+	void RecursiveLoadResources(const std::filesystem::path& path, Fn&& fn) {
+		for (auto& entry : std::filesystem::recursive_directory_iterator(getFullPath(path))) {
+			if (!entry.is_directory()) {
+				std::vector<char> bytes(std::filesystem::file_size(entry.path()));
+
+				std::ifstream file(entry.path(), std::ios::binary);
+				file.read(bytes.data(), bytes.size());
+
+				fn(bytes);
+			}
+		}
+	}
+};
+
+struct ModelPartBox {
+	glm::vec3 origin;
+	glm::vec3 size;
+	glm::vec2 uv;
+
+//	void build() {
+//		const float x0 = origin.x;
+//		const float y0 = origin.y;
+//		const float z0 = origin.z;
+//
+//		const float x1 = origin.x + size.x;
+//		const float y1 = origin.y + size.y;
+//		const float z1 = origin.z + size.z;
+//
+//		const float u0 = uv.x;
+//		const float u1 = uv.x + size.z;
+//		const float u2 = uv.x + size.z + size.x;
+//		const float u3 = uv.x + size.z + size.x + size.x;
+//		const float u4 = uv.x + size.z + size.x + size.z;
+//		const float u5 = uv.x + size.z + size.x + size.z + size.x;
+//
+//		const float v0 = uv.y;
+//		const float v1 = uv.y + size.z;
+//		const float v2 = uv.y + size.z + size.y;
+//
+//		PositionTextureVertex vertex0{x0, y0, z0};
+//		PositionTextureVertex vertex1{x0, y1, z0};
+//		PositionTextureVertex vertex2{x1, y1, z0};
+//		PositionTextureVertex vertex3{x1, y0, z0};
+//
+//		PositionTextureVertex vertex4{x1, y1, z1};
+//		PositionTextureVertex vertex5{x1, y0, z1};
+//		PositionTextureVertex vertex6{x0, y1, z1};
+//		PositionTextureVertex vertex7{x0, y0, z1};
+//
+////		TexturedQuad quad0({ vertex0, vertex1, vertex2, vertex3 }, u1, v1, u2, v2, texture_width, texture_height, {0, 0, -1});
+////		TexturedQuad quad1({ vertex3, vertex2, vertex4, vertex5 }, u1, v1, u0, v2, texture_width, texture_height, {1, 0, 0});
+////		TexturedQuad quad2({ vertex5, vertex4, vertex6, vertex7 }, u4, v1, u5, v2, texture_width, texture_height, {0, 0, 1});
+////		TexturedQuad quad3({ vertex7, vertex6, vertex1, vertex0 }, u0, v1, u1, v2, texture_width, texture_height, {-1, 0, 0});
+////		TexturedQuad quad4({ vertex1, vertex6, vertex4, vertex2 }, u1, v0, u2, v1, texture_width, texture_height, {0, 1, 0});
+////		TexturedQuad quad5({ vertex7, vertex0, vertex3, vertex5 }, u2, v0, u3, v1, texture_width, texture_height, {0, -1, 0});
+//
+////		ModelBox modelBox {
+////			.quads { quad0, quad1, quad2, quad3, quad4, quad5 }
+////		};
+//	}
+};
+
+struct ModelPart {
+	std::string name;
+	std::string parent;
+	bool neverRender = false;
+
+	std::vector<ModelPartBox> cubes;
+};
+
+struct ModelGeometry {
+	std::string name;
+	std::string parent;
+	std::optional<int> texture_width;
+	std::optional<int> texture_height;
+
+	std::vector<ModelPart> bones;
+};
+
+std::unordered_map<std::string, std::unique_ptr<ModelGeometry>> models;
+
+std::vector<std::string> decompose(std::string name, char ch) {
+	std::vector<std::string> ret;
+
+	auto delim = name.find_first_of(ch);
+	if (delim != name.npos) {
+		ret.emplace_back(name.substr(0, delim));
+		ret.emplace_back(name.substr(delim + 1));
+	} else {
+		ret.emplace_back(std::move(name));
+	}
+
+	return std::move(ret);
+}
+
+void LoadGeometry_v1_8_0(json::Object& obj) {
+	for (auto& [name, geometry] : obj) {
+		auto parts = decompose(name, ':');
+
+		ModelGeometry model;
+
+		model.name = std::move(parts[0]);
+		if (parts.size() > 1) {
+			model.parent = std::move(parts[1]);
+		}
+
+		if (auto texture_width = geometry.get("texturewidth")) {
+			model.texture_width = texture_width.value().as_i64().value();
+		}
+		if (auto texture_height = geometry.get("textureheight")) {
+			model.texture_width = texture_height.value().as_i64().value();
+		}
+
+		if (auto bones = geometry.get("bones")) {
+			for (auto& bone : bones->as_array().value()) {
+				ModelPart part;
+				part.name = bone.get("name").value().as_string().value();
+
+				if (auto parent = bone.get("parent")) {
+					part.parent = parent->as_string().value();
+				}
+
+				if (auto neverRender = bone.get("neverRender")) {
+					part.neverRender = neverRender->as_bool().value();
+				}
+
+				if (auto cubes = bone.get("cubes")) {
+					for (auto cube : cubes->as_array().value()) {
+						auto& origin = cube.get("origin").value().as_array().value();
+						auto& size = cube.get("size").value().as_array().value();
+						auto uv = cube.get("uv").value_or(json::Array{0.0f, 0.0f}).as_array().value();
+
+						ModelPartBox box {
+							.origin {
+								origin[0].as_f64().value(),
+								origin[1].as_f64().value(),
+								origin[2].as_f64().value()
+							},
+							.size {
+								size[0].as_f64().value(),
+								size[1].as_f64().value(),
+								size[2].as_f64().value()
+							},
+							.uv {
+								uv[0].as_f64().value(),
+								uv[1].as_f64().value()
+							}
+						};
+
+						part.cubes.emplace_back(box);
+					}
+				}
+
+				model.bones.emplace_back(std::move(part));
+			}
+		}
+	}
+}
+
+void LoadGeometry(std::span<char> bytes) {
+	using namespace std::string_view_literals;
+
+	json::Parser parser(bytes);
+
+	auto obj = parser.parse().value().as_object().value();
+
+	auto& format_version = obj.extract("format_version").mapped().as_string().value();
+
+	if (format_version == "1.8.0"sv) {
+		LoadGeometry_v1_8_0(obj);
+	} else {
+		std::cout << "unsupported geometry format '" << format_version << "'" << std::endl;
+	}
+}
+
 int main(int, char**) {
+	ResourcePack resourcePack("assets/resource_packs/vanilla");
+	resourcePack.LoadResources("models/entity", LoadGeometry);
+	resourcePack.LoadResource("models/mobs.json", LoadGeometry);
+
 	GameWindow window("Vulkan", 1280, 720);
 	window.setMouseButtonCallback(&Mouse::handleMouseButton);
 	window.setMousePositionCallback(&Mouse::handleMousePosition);
@@ -993,7 +1220,12 @@ int main(int, char**) {
 	client.init(&window);
 	client.setRenderingSize(width, height);
 
-	while (!window.wantToQuit()) {
+	while (!window.shouldClose()) {
+		if (client.wantToQuit()) {
+			window.close();
+			break;
+		}
+
 		client.tick();
 	}
 	return 0;
