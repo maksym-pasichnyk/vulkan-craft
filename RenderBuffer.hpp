@@ -7,13 +7,17 @@ struct RenderBuffer {
 	Buffer VertexBuffer{};
 	Buffer IndexBuffer{};
 
+	int VertexCount;
+	int IndexCount;
+
 	vk::DeviceSize VertexBufferSize{0};
 	vk::DeviceSize IndexBufferSize{0};
 
-	void SetVertexBufferSize(int buffer_size) {
+	void SetVertexBufferCount(int count, size_t elementSize) {
 		VertexBuffer.destroy();
 
-		VertexBufferSize = buffer_size;
+		VertexCount = count;
+		VertexBufferSize = count * elementSize;
 		if (VertexBufferSize > 0) {
 			vk::BufferCreateInfo BufferCI {
 				.size = VertexBufferSize,
@@ -29,10 +33,11 @@ struct RenderBuffer {
 		VertexBuffer.unmap();
 	}
 
-	void SetIndexBufferSize(int buffer_size) {
+	void SetIndexBufferCount(int count, size_t elementSize) {
 		IndexBuffer.destroy();
 
-		IndexBufferSize = buffer_size;
+		IndexCount = count;
+		IndexBufferSize = count * elementSize;
 		if (IndexBufferSize > 0) {
 			vk::BufferCreateInfo BufferCI {
 				.size = IndexBufferSize,

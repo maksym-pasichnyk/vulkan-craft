@@ -1,10 +1,15 @@
 #pragma once
 
 #include <map>
+#include <string>
 #include <string_view>
 #include <vector>
 #include <variant>
 #include <optional>
+#include <span>
+
+template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
+template<class... Ts> overload(Ts...) -> overload<Ts...>;
 
 namespace json {
 	struct Value;
@@ -23,7 +28,7 @@ namespace json {
 			if (storage.has_value()) {
 				return **storage;
 			}
-			return std::forward<T>(arg);
+			return std::forward<U>(arg);
 		}
 
 		constexpr operator bool() const {
@@ -49,12 +54,21 @@ namespace json {
 		constexpr const T* operator->() const {
 			return std::addressof(**storage);
 		}
+
+		constexpr T& operator*() {
+			return **storage;
+		}
+
+		constexpr const T& operator*() const {
+			return **storage;
+		}
 	private:
 		std::optional<T*> storage;
 	};
 
-	struct Value : private std::variant<int64_t, uint64_t, double, std::string, bool, Array, Object, Null> {
+	struct Value : public std::variant<int64_t, uint64_t, double, std::string, bool, Array, Object, Null> {
 		using variant::variant;
+		using variant::valueless_by_exception;
 
 		std::optional<int64_t> as_i64() {
 			switch (index()) {
@@ -103,12 +117,13 @@ namespace json {
 		}
 
 		Result<Value> get(const std::string& key) & {
-			auto& obj = as_object().value();
-			auto it = obj.find(key);
-			if (it == obj.end()) {
-				return std::nullopt;
+			if (auto obj = as_object()) {
+				auto it = obj->find(key);
+				if (it != obj->end()) {
+					return it->second;
+				}
 			}
-			return it->second;
+			return std::nullopt;
 		}
 
 		bool is_number() const {
@@ -163,6 +178,14 @@ namespace json {
 			default:
 				return false;
 			}
+		}
+
+		variant& to_variant() {
+			return *static_cast<variant*>(this);
+		}
+
+		const variant& to_variant() const {
+			return *static_cast<const variant*>(this);
 		}
 
 	private:

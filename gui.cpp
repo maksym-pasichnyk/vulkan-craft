@@ -471,11 +471,8 @@ void GUI::draw(vk::CommandBuffer cmd) {
 	auto rb = &_renderBuffers[_frameIndex];
 
 	if (draw_data->TotalVtxCount > 0) {
-		size_t vertex_buffer_size = draw_data->TotalVtxCount * sizeof(ImDrawVert);
-		size_t index_buffer_size = draw_data->TotalIdxCount * sizeof(ImDrawIdx);
-
-		rb->SetVertexBufferSize(vertex_buffer_size);
-		rb->SetIndexBufferSize(index_buffer_size);
+		rb->SetVertexBufferCount(draw_data->TotalVtxCount, sizeof(ImDrawVert));
+		rb->SetIndexBufferCount(draw_data->TotalIdxCount, sizeof(ImDrawIdx));
 
 		auto vtx_dst = static_cast<ImDrawVert *>(rb->VertexBuffer.map());
 		auto idx_dst = static_cast<ImDrawIdx *>(rb->IndexBuffer.map());
