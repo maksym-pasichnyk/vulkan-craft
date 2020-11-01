@@ -15,27 +15,7 @@
 
 #include "renderer/entity/AgentRenderer.hpp"
 
-inline static glm::mat4 PerspectiveProjectionMatrix(float field_of_view, float aspect_ratio, float near_plane, float far_plane) {
-	const float tanHalfFovy = glm::tan(field_of_view * 0.5f);
-
-	const float a = 1.0f / (aspect_ratio * tanHalfFovy);
-	const float b = -1.0f / tanHalfFovy;
-	const float c = far_plane / (far_plane - near_plane);
-	const float d = (near_plane * far_plane) / (near_plane - far_plane);
-
-
-
-	return {
-		a, 0, 0, 0,
-		0, b, 0, 0,
-		0, 0, c, 1,
-		0, 0, d, 0
-	};
-}
-
-struct TilePos {
-	int x, y, z;
-};
+#include "world/tile/Tile.hpp"
 
 enum class ConnectionBit {
     None = 0,
@@ -64,11 +44,6 @@ enum class FlammableBit {
     West = 32
 };
 
-inline constexpr auto operator&&(FlammableBit __lhs, FlammableBit __rhs) -> bool {
-    using base = std::underlying_type<FlammableBit>::type;
-    return (base(__lhs) & base(__rhs)) != base(0);
-}
-
 inline constexpr auto operator|(FlammableBit __lhs, FlammableBit __rhs) -> FlammableBit {
     using base = std::underlying_type<FlammableBit>::type;
     return FlammableBit(base(__lhs) | base(__rhs));
@@ -78,6 +53,109 @@ inline constexpr auto operator|=(FlammableBit& __lhs, FlammableBit __rhs) -> Fla
     using base = std::underlying_type<FlammableBit>::type;
     return __lhs = FlammableBit(base(__lhs) | base(__rhs));
 }
+
+struct Camera {
+	Camera(AppPlatform* platform) {
+		auto bytes = platform->readAssetFile("definitions/cameras/cameras/first_person.json");
+
+		json::Parser parser(bytes);
+		auto object = parser.parse().value().as_object().value();
+
+		field_of_view = object.at("field_of_view").as_f64().value();
+		near_clipping_plane = object.at("near_clipping_plane").as_f64().value();
+		far_clipping_plane = object.at("far_clipping_plane").as_f64().value();
+	}
+
+	void setRenderingSize(int width, int height) {
+		const float tanHalfFovy = glm::tan(glm::radians(field_of_view) * 0.5f);
+		const float aspect_ratio = float(width) / float(height);
+
+		const float a = 1.0f / (aspect_ratio * tanHalfFovy);
+		const float b = -1.0f / tanHalfFovy;
+		const float c = far_clipping_plane / (far_clipping_plane - near_clipping_plane);
+		const float d = (near_clipping_plane * far_clipping_plane) / (near_clipping_plane - far_clipping_plane);
+
+		_projection = {
+				a, 0, 0, 0,
+				0, b, 0, 0,
+				0, 0, c, 1,
+				0, 0, d, 0
+		};
+	}
+
+	glm::mat4 projection() {
+		return _projection;
+	}
+
+private:
+	float field_of_view;
+	float near_clipping_plane;
+	float far_clipping_plane;
+
+	glm::mat4 _projection;
+};
+
+//struct TextureSlot {
+//	consteval TextureSlot(std::string_view name) : name(name), parent(nullptr) {}
+//	consteval TextureSlot(std::string_view name, TextureSlot& parent) : name(name), parent(&parent) {}
+//
+//private:
+//	std::string_view name;
+//	TextureSlot* parent;
+//};
+//
+//struct TextureSlots {
+//	inline static constinit TextureSlot Texture = TextureSlot("texture");
+//	inline static constinit TextureSlot Side = TextureSlot("side", Texture);
+//	inline static constinit TextureSlot Top = TextureSlot("top", Texture);
+//	inline static constinit TextureSlot Bottom = TextureSlot("bottom", Texture);
+//	inline static constinit TextureSlot North = TextureSlot("north", Side);
+//	inline static constinit TextureSlot South = TextureSlot("south", Side);
+//	inline static constinit TextureSlot East = TextureSlot("east", Side);
+//	inline static constinit TextureSlot West = TextureSlot("west", Side);
+//};
+
+struct TileTextures {
+	std::optional<std::string> up;
+	std::optional<std::string> down;
+	std::optional<std::string> north;
+	std::optional<std::string> south;
+	std::optional<std::string> east;
+	std::optional<std::string> west;
+
+	void read(json::Value& textures) {
+		if (auto textureObj = textures.as_string()) {
+			auto& texture = textureObj.value();
+			up = texture;
+			down = texture;
+			north = texture;
+			south = texture;
+			east = texture;
+			west = texture;
+		} else {
+			auto side = textures.get("side");
+
+			up = get(textures, "up");
+			down = get(textures, "down");
+			north = get(textures, "north", side);
+			south = get(textures, "north", side);
+			east = get(textures, "east", side);
+			west = get(textures, "west", side);
+		}
+	}
+
+private:
+	static std::string get(json::Value& textures, const std::string& name) {
+		return textures.get(name).value().as_string().value();
+	}
+
+	static std::string get(json::Value& textures, const std::string& name, json::Result<json::Value> other) {
+		if (auto texture = textures.get(name)) {
+			return texture.value().as_string().value();
+		}
+		return other.value().as_string().value();
+	}
+};
 
 struct GameClient {
 	RenderSystem* core = RenderSystem::Instance();
@@ -90,10 +168,29 @@ struct GameClient {
 
 		resourceManager = std::make_unique<ResourceManager>();
 		textureManager = std::make_unique<TextureManager>(renderContext.get(), resourceManager.get());
-
 		resourceManager->addResourcePack(std::make_unique<ResourcePack>("assets/resource_packs/vanilla"));
 
+		Tile::initTiles(textureManager.get());
+
 		agent = std::make_unique<AgentRenderer>(platform.get(), resourceManager.get(), textureManager.get(), renderContext.get());
+
+		camera = std::make_unique<Camera>(platform.get());
+
+		auto bytes = resourceManager->loadFile("blocks.json");
+		json::Parser parser{bytes.value()};
+
+		auto object = parser.parse().value().as_object().value();
+		auto format_version = object.extract("format_version");
+
+		for (auto& [name, obj] : object) {
+			TileTextures tileTextures;
+
+			if (auto textures = obj.get("textures")) {
+				std::cout << name << std::endl;
+
+				tileTextures.read(textures.value());
+			}
+		}
 	}
 
 	void tick() {
@@ -108,28 +205,30 @@ struct GameClient {
 	}
 
 	void render() {
-		auto proj = projection;
+		auto proj = camera->projection();
 		auto view = rotationMatrix();
 
 		CameraTransform transform {
-			.camera = proj * glm::translate(view, -cameraPosition)
+			.camera = proj * glm::translate(view, -position)
 		};
 
 		auto cmd = renderContext->begin();
+		cmd.setViewport(0, 1, &viewport);
+		cmd.setScissor(0, 1, &scissor);
+
 		agent->render(cmd, transform);
 		renderContext->end();
 	}
 
 	void setRenderingSize(int width, int height) {
-		projection = PerspectiveProjectionMatrix(
-				glm::radians(60.0f),
-				float(width) / float(height),
-				0.1f,
-				1000.0f
-		);
-
-		agent->setRenderingSize(width, height);
 		renderContext->setRenderingSize(width, height);
+		camera->setRenderingSize(width, height);
+
+		viewport.width = width;
+		viewport.height = height;
+
+		scissor.extent.width = width;
+		scissor.extent.height = height;
 	}
 
 	void quit() {
@@ -150,12 +249,12 @@ private:
 		float c = glm::cos(yaw);
 		float s = glm::sin(yaw);
 
-		glm::mat4 view;
-		view[0] = glm::vec4(c, sp * s, -cp * s, 0);
-		view[1] = glm::vec4(0, cp, sp, 0);
-		view[2] = glm::vec4(s, -sp * c, cp * c, 0);
-		view[3] = glm::vec4(0, 0, 0, 1);
-		return view;
+		return {
+			c, sp * s, -cp * s, 0,
+			0, cp, sp, 0,
+			s, -sp * c, cp * c, 0,
+			0, 0, 0, 1
+		};
 	}
 
 	void camera_tick(float dt) {
@@ -181,16 +280,16 @@ private:
 		auto right = glm::vec3(1, 0, 0) * rot;
 
 		if (Keyboard::IsKeyPressed(Key::W)) {
-			cameraPosition += forward * dt * 5.0f;
+			position += forward * dt * 5.0f;
 		}
 		if (Keyboard::IsKeyPressed(Key::S)) {
-			cameraPosition -= forward * dt * 5.0f;
+			position -= forward * dt * 5.0f;
 		}
 		if (Keyboard::IsKeyPressed(Key::A)) {
-			cameraPosition -= right * dt * 5.0f;
+			position -= right * dt * 5.0f;
 		}
 		if (Keyboard::IsKeyPressed(Key::D)) {
-			cameraPosition += right * dt * 5.0f;
+			position += right * dt * 5.0f;
 		}
 	}
 private:
@@ -203,8 +302,20 @@ private:
 	std::unique_ptr<RenderContext> renderContext;
 	std::unique_ptr<AgentRenderer> agent;
 
-	glm::mat4 projection;
-	glm::vec3 cameraPosition{0, 1.5f, -2};
+	std::unique_ptr<Camera> camera;
+
+	vk::Viewport viewport{
+		.x = 0,
+		.y = 0,
+		.width = 0,
+		.height = 0,
+		.minDepth = 0,
+		.maxDepth = 1
+	};
+
+	vk::Rect2D scissor {};
+
+	glm::vec3 position{0, 1.5f, -2};
 	float rotationYaw{0};
 	float rotationPitch{0};
 
@@ -212,10 +323,6 @@ private:
 };
 
 int main(int, char**) {
-//	ResourcePack resourcePack("assets/resource_packs/vanilla");
-//	resourcePack.LoadResources("models/entity", LoadGeometry);
-//	resourcePack.LoadResource("models/mobs.json", LoadGeometry);
-
 	GameWindow window("Vulkan", 1280, 720);
 	window.setMouseButtonCallback(&Mouse::handleMouseButton);
 	window.setMousePositionCallback(&Mouse::handleMousePosition);

@@ -12,25 +12,13 @@ struct ResourceManager {
 		resourcePacks.emplace_back(std::move(resourcePack));
 	}
 
-	bool loadFile(const std::filesystem::path& path, std::vector<char>& bytes) {
+	std::optional<std::string> loadFile(const std::filesystem::path& path) {
 		for (auto& resourcePack : resourcePacks) {
-			if (resourcePack->loadFile(path, bytes)) {
-				return true;
+			if (auto value = resourcePack->loadFile(path)) {
+				return std::move(value);
 			}
 		}
-		return false;
-	}
-
-	template <typename Fn>
-	bool loadFile(const std::filesystem::path& path, Fn&& fn) {
-		std::vector<char> bytes;
-		for (auto& resourcePack : resourcePacks) {
-			if (resourcePack->loadFile(path, bytes)) {
-				fn(std::span(bytes.data(), bytes.size()));
-				return true;
-			}
-		}
-		return false;
+		return std::nullopt;
 	}
 
 private:

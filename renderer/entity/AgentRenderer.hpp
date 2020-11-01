@@ -26,8 +26,8 @@ struct AgentRenderer {
 		material = std::make_unique<Material>(platform, resourceManager, renderer);
 		material->SetTexture(texture);
 
-		resourceManager->loadFile("models/mobs.json", [&](std::span<const char> bytes) {
-			json::Parser parser(bytes);
+		if (auto bytes = resourceManager->loadFile("models/mobs.json")) {
+			json::Parser parser(*bytes);
 
 			auto mobs = parser.parse().value();
 
@@ -155,7 +155,7 @@ struct AgentRenderer {
 					}
 				}
 			}
-		});
+		};
 
 		for (auto&& cube : agentModel.cubes) {
 			for (auto&& quad : cube.quads) {
@@ -187,23 +187,12 @@ struct AgentRenderer {
 		renderBuffer.destroy();
 	}
 
-	void setRenderingSize(int width, int height) {
-		viewport.width = width;
-		viewport.height = height;
-
-		scissor.extent.width = width;
-		scissor.extent.height = height;
-	}
-
 	void render(vk::CommandBuffer cmd, CameraTransform& transform) {
 		vk::DeviceSize offset{0};
 
 		vk::Buffer vertexBuffers[] {
 			renderBuffer.VertexBuffer
 		};
-
-		cmd.setViewport(0, 1, &viewport);
-		cmd.setScissor(0, 1, &scissor);
 
 		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, material->pipeline);
 		cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, material->pipelineLayout, 0, 1, &material->descriptorSet, 0, nullptr);
@@ -221,15 +210,4 @@ private:
 
 	RenderBuffer renderBuffer;
 	VertexBuilder vertexBuilder;
-
-	vk::Viewport viewport{
-		.x = 0,
-		.y = 0,
-		.width = 0,
-		.height = 0,
-		.minDepth = 0,
-		.maxDepth = 1
-	};
-
-	vk::Rect2D scissor {};
 };

@@ -93,27 +93,31 @@ namespace json {
 		}
 
 		Result<std::string> as_string() & {
-			return get_opt_ref<std::string>(this);
+			return get_opt_ref<std::string>(*this);
+		}
+
+		std::optional<std::string> as_string() && {
+			return get_opt<std::string>(std::move(*this));
 		}
 
 		Result<bool> as_bool() & {
-			return get_opt_ref<bool>(this);
+			return get_opt_ref<bool>(*this);
 		}
 
 		Result<Array> as_array() & {
-			return get_opt_ref<Array>(this);
+			return get_opt_ref<Array>(*this);
 		}
 
 		std::optional<Array> as_array() && {
-			return get_opt<Array>(this);
+			return get_opt<Array>(std::move(*this));
 		}
 
 		Result<Object> as_object() & {
-			return get_opt_ref<Object>(this);
+			return get_opt_ref<Object>(*this);
 		}
 
 		std::optional<Object> as_object() && {
-			return get_opt<Object>(this);
+			return get_opt<Object>(std::move(*this));
 		}
 
 		Result<Value> get(const std::string& key) & {
@@ -190,22 +194,22 @@ namespace json {
 
 	private:
 		template<typename _Tp, typename... _Types>
-		inline static Result<_Tp> get_opt_ref(std::variant<_Types...>* __ptr) noexcept {
+		inline static Result<_Tp> get_opt_ref(std::variant<_Types...>& __ptr) noexcept {
 			static constexpr size_t _Np = std::__detail::__variant::__index_of_v<_Tp, _Types...>;
-			if (__ptr->index() != _Np) {
+			if (__ptr.index() != _Np) {
 				return std::nullopt;
 			}
-			return std::__detail::__variant::__get<_Np>(*__ptr);
+			return std::__detail::__variant::__get<_Np>(__ptr);
 		}
 
 
 		template<typename _Tp, typename... _Types>
-		inline static std::optional<_Tp> get_opt(std::variant<_Types...>* __ptr) noexcept {
+		inline static std::optional<_Tp> get_opt(std::variant<_Types...>&& __ptr) noexcept {
 			static constexpr size_t _Np = std::__detail::__variant::__index_of_v<_Tp, _Types...>;
-			if (__ptr->index() != _Np) {
+			if (__ptr.index() != _Np) {
 				return std::nullopt;
 			}
-			return std::move(std::__detail::__variant::__get<_Np>(*__ptr));
+			return std::move(std::__detail::__variant::__get<_Np>(__ptr));
 		}
 	};
 
@@ -349,6 +353,16 @@ namespace json {
 				case '\n':
 					line++;
 					getc();
+					continue;
+				case '/':
+					getc();
+					if (!is('/')) {
+						break;
+					}
+					getc();
+					while (!eof() && !is('\n')) {
+						getc();
+					}
 					continue;
 				case ' ':  case '\t': case '\r': getc(); continue;
 				case '"': {

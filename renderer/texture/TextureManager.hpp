@@ -23,12 +23,12 @@ struct TextureManager {
 
 	Texture* loadTexture(const std::string& name) {
 		std::vector<char> bytes;
-		if (resourceManager->loadFile(name, bytes)) {
-			auto data = reinterpret_cast<const unsigned char *>(bytes.data());
+		if (auto bytes = resourceManager->loadFile(name)) {
+			auto data = reinterpret_cast<const unsigned char *>(bytes->data());
 
 			int width, height, channels;
 
-			auto pixels = stbi_load_from_memory(data, bytes.size(), &width, &height, &channels, 0);
+			auto pixels = stbi_load_from_memory(data, bytes->size(), &width, &height, &channels, 0);
 
 			auto texture = createTexture(vk::Format::eR8G8B8A8Unorm, width, height);
 
