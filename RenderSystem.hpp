@@ -7,7 +7,7 @@
 
 #include "mem_alloc.hpp"
 
-#include "span.hpp"
+#include <span>
 
 struct RenderSystem {
 	inline static constexpr vk::ApplicationInfo appInfo{
@@ -203,7 +203,7 @@ private:
 		}
 	}
 
-	inline vk::Format findSupportedFormat(span<const vk::Format> formats, vk::ImageTiling tiling, vk::FormatFeatureFlags flags) {
+	inline vk::Format findSupportedFormat(std::span<const vk::Format> formats, vk::ImageTiling tiling, vk::FormatFeatureFlags flags) {
 		for (auto format : formats) {
 			if (isFormatSupported(format, tiling, flags)) {
 				return format;

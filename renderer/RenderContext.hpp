@@ -95,7 +95,7 @@ private:
 		};
 	}
 
-	inline static vk::SurfaceFormatKHR selectSurfaceFormat(span<vk::SurfaceFormatKHR> surface_formats, span<vk::Format> request_formats, vk::ColorSpaceKHR request_color_space) {
+	inline static vk::SurfaceFormatKHR selectSurfaceFormat(std::span<const vk::SurfaceFormatKHR> surface_formats, std::span<const vk::Format> request_formats, vk::ColorSpaceKHR request_color_space) {
 		if (surface_formats.size() == 1) {
 			if (surface_formats[0].format == vk::Format::eUndefined) {
 				vk::SurfaceFormatKHR ret;
@@ -115,7 +115,7 @@ private:
 		return surface_formats.front();
 	}
 
-	inline static vk::PresentModeKHR selectPresentMode(span<vk::PresentModeKHR> present_modes, span<vk::PresentModeKHR> request_modes) {
+	inline static vk::PresentModeKHR selectPresentMode(std::span<const vk::PresentModeKHR> present_modes, std::span<const vk::PresentModeKHR> request_modes) {
 		for (size_t i = 0; i < request_modes.size(); i++)
 			for (size_t j = 0; j < present_modes.size(); j++)
 				if (request_modes[i] == present_modes[j])

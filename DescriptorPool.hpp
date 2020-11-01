@@ -6,10 +6,10 @@
 struct DescriptorPool {
 	vk::DescriptorPool _descriptorPool;
 
-	inline static DescriptorPool create(uint32_t maxSets, span<const vk::DescriptorPoolSize> poolSizes) {
+	inline static DescriptorPool create(uint32_t maxSets, std::span<const vk::DescriptorPoolSize> poolSizes) {
 		vk::DescriptorPoolCreateInfo createInfo {
 			.maxSets = maxSets,
-			.poolSizeCount = std::size(poolSizes),
+			.poolSizeCount = static_cast<uint32_t>(std::size(poolSizes)),
 			.pPoolSizes = std::data(poolSizes)
 		};
 
