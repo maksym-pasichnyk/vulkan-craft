@@ -13,7 +13,7 @@ struct DescriptorPool {
 			.pPoolSizes = std::data(poolSizes)
 		};
 
-		return {RenderSystem::Get()->device().createDescriptorPool(createInfo, nullptr)};
+		return {RenderSystem::Instance()->device().createDescriptorPool(createInfo, nullptr)};
 	}
 
 	inline vk::DescriptorSet allocate(vk::DescriptorSetLayout setLayout) {
@@ -24,15 +24,15 @@ struct DescriptorPool {
 		};
 
 		vk::DescriptorSet descriptorSet;
-		RenderSystem::Get()->device().allocateDescriptorSets(&allocateInfo, &descriptorSet);
+		RenderSystem::Instance()->device().allocateDescriptorSets(&allocateInfo, &descriptorSet);
 		return descriptorSet;
 	}
 
 	inline void free(vk::DescriptorSet descriptorSet) {
-		RenderSystem::Get()->device().freeDescriptorSets(_descriptorPool, 1, &descriptorSet);
+		RenderSystem::Instance()->device().freeDescriptorSets(_descriptorPool, 1, &descriptorSet);
 	}
 
 	inline void destroy() {
-		RenderSystem::Get()->device().destroyDescriptorPool(_descriptorPool, nullptr);
+		RenderSystem::Instance()->device().destroyDescriptorPool(_descriptorPool, nullptr);
 	}
 };

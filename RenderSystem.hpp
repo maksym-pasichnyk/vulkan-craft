@@ -30,7 +30,7 @@ struct RenderSystem {
 			.samplerAnisotropy = VK_TRUE
 	};
 
-	inline static RenderSystem* Get() {
+	inline static RenderSystem* Instance() {
 		static constinit RenderSystem graphics;
 		return &graphics;
 	}
@@ -41,7 +41,7 @@ struct RenderSystem {
 		return std::vector<const char *>(extensions, extensions + count);
 	}
 
-	void initialize(GLFWwindow* window) {
+	void init(GLFWwindow* window) {
 		auto extensions = getRequiredExtension();
 		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 

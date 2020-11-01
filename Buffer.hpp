@@ -10,22 +10,22 @@ struct Buffer {
 		VmaAllocation allocation;
 
 		VkBufferCreateInfo vkBufferCI = BufferCI;
-		vmaCreateBuffer(RenderSystem::Get()->allocator(), &vkBufferCI, &AllocCI, &buffer, &allocation, nullptr);
+		vmaCreateBuffer(RenderSystem::Instance()->allocator(), &vkBufferCI, &AllocCI, &buffer, &allocation, nullptr);
 		return { buffer, allocation };
 	}
 
 	inline void destroy() {
-		vmaDestroyBuffer(RenderSystem::Get()->allocator(), buffer, allocation);
+		vmaDestroyBuffer(RenderSystem::Instance()->allocator(), buffer, allocation);
 	}
 
 	void* map() {
 		void *pData;
-		vmaMapMemory(RenderSystem::Get()->allocator(), allocation, &pData);
+		vmaMapMemory(RenderSystem::Instance()->allocator(), allocation, &pData);
 		return pData;
 	}
 
 	void unmap() {
-		vmaUnmapMemory(RenderSystem::Get()->allocator(), allocation);
+		vmaUnmapMemory(RenderSystem::Instance()->allocator(), allocation);
 	}
 
 	operator vk::Buffer() {

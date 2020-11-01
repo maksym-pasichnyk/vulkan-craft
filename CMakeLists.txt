@@ -49,12 +49,12 @@ add_library(imgui STATIC
     imgui/imgui_widgets.cpp
     imgui/imstb_rectpack.h
     imgui/imstb_textedit.h
-    imgui/imstb_truetype.h)
+    imgui/imstb_truetype.h renderer/ModelTransform.hpp renderer/shader/ShaderManager.hpp)
 
 add_executable(vcraft
     main.cpp
     stb_image.hpp
-    Texture.hpp
+        renderer/texture/Texture.hpp
     main.cpp
     span.hpp
     console.hpp
@@ -65,11 +65,11 @@ add_executable(vcraft
     mem_alloc.cpp
     RenderSystem.hpp
     CommandPool.hpp
-    RenderBuffer.hpp
-    ResourceManager.hpp
+        renderer/RenderBuffer.hpp
+        resources/ResourceManager.hpp
     Buffer.hpp
     Image.hpp
-    Texture.hpp
+        renderer/texture/Texture.hpp
     DescriptorPool.hpp
     Input.hpp
     GameWindow.hpp
@@ -77,8 +77,8 @@ add_executable(vcraft
     Json.hpp
     Mouse.hpp
     Keyboard.hpp
-    ModelRenderer.hpp
-    VertexBuilder.hpp)
+        renderer/ModelRenderer.hpp
+    VertexBuilder.hpp math/vec3.hpp math/vec2.hpp math/vec4.hpp math/vec.hpp renderer/Tessellator.hpp renderer/BlockTessellator.hpp math/AABB.hpp renderer/TextureUVCoordinateSet.hpp world/tile/Tile.hpp world/tile/ButtonTile.hpp world/tile/Tiles.hpp renderer/entity/AgentRenderer.hpp renderer/ModelGeometry.hpp renderer/ModelPart.hpp renderer/ModelPartBox.hpp renderer/PositionTextureVertex.hpp renderer/TexturedQuad.hpp renderer/ModelBox.hpp renderer/RenderContext.hpp renderer/texture/TextureManager.hpp util/ResourceLocation.hpp resources/ResourcePack.hpp renderer/Material.hpp client/AppPlatform.hpp)
 
 target_link_libraries(vcraft glfw vulkan imgui)
 add_dependencies(vcraft shaders)

@@ -2,8 +2,8 @@
 
 #include <imgui/imgui.h>
 
-#include "Texture.hpp"
-#include "RenderBuffer.hpp"
+#include "renderer/texture/Texture.hpp"
+#include "renderer/RenderBuffer.hpp"
 #include "CommandPool.hpp"
 #include "DescriptorPool.hpp"
 
@@ -41,7 +41,7 @@ private:
 	void updateGamepads();
 
 private:
-	RenderSystem* core = RenderSystem::Get();
+	RenderSystem* core = RenderSystem::Instance();
 
 	GLFWwindow* _window;
 

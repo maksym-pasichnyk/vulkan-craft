@@ -2,6 +2,9 @@
 
 #include <GLFW/glfw3.h>
 
+#include <functional>
+#include <string>
+
 enum class KeyAction {
 	Release = 0,
 	Press = 1,

@@ -15,7 +15,7 @@ struct Image {
 		VmaAllocation allocation;
 
 		VkImageCreateInfo vkImageCI = ImageCI;
-		vmaCreateImage(RenderSystem::Get()->allocator(), &vkImageCI, &AllocCI, &image, &allocation, nullptr);
+		vmaCreateImage(RenderSystem::Instance()->allocator(), &vkImageCI, &AllocCI, &image, &allocation, nullptr);
 
 		return {
 			.image = image,
@@ -29,7 +29,7 @@ struct Image {
 	}
 
 	void destroy() {
-		vmaDestroyImage(RenderSystem::Get()->allocator(), image, allocation);
+		vmaDestroyImage(RenderSystem::Instance()->allocator(), image, allocation);
 	}
 
 //	void setTextureData(const void *pixels, vk::DeviceSize size) {
