@@ -1,19 +1,21 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
-#include <client/AppPlatform.hpp>
+
+#include "client/AppPlatform.hpp"
 
 #include "GameWindow.hpp"
-#include "renderer/RenderContext.hpp"
-
-#include "resources/ResourceManager.hpp"
-#include "renderer/texture/TextureManager.hpp"
-
 #include "Clock.hpp"
 #include "Mouse.hpp"
 #include "Keyboard.hpp"
+#include "gui.hpp"
 
+#include "resources/ResourceManager.hpp"
+
+#include "renderer/RenderContext.hpp"
 #include "renderer/entity/AgentRenderer.hpp"
+#include "renderer/texture/TextureManager.hpp"
+#include "renderer/texture/TextureAtlas.hpp"
 
 #include "world/tile/Tile.hpp"
 
@@ -66,7 +68,7 @@ struct Camera {
 		far_clipping_plane = object.at("far_clipping_plane").as_f64().value();
 	}
 
-	void setRenderingSize(int width, int height) {
+	void setRenderSize(int width, int height) {
 		const float tanHalfFovy = glm::tan(glm::radians(field_of_view) * 0.5f);
 		const float aspect_ratio = float(width) / float(height);
 
@@ -170,27 +172,39 @@ struct GameClient {
 		textureManager = std::make_unique<TextureManager>(renderContext.get(), resourceManager.get());
 		resourceManager->addResourcePack(std::make_unique<ResourcePack>("assets/resource_packs/vanilla"));
 
-		Tile::initTiles(textureManager.get());
-
 		agent = std::make_unique<AgentRenderer>(platform.get(), resourceManager.get(), textureManager.get(), renderContext.get());
 
+		atlas = std::make_unique<TextureAtlas>();
+		atlas->loadMetaFile(resourceManager.get());
+		textureManager->upload("textures/blocks", atlas.get());
+
+		loadBlocks();
+		Tile::initTiles(textureManager.get());
+
 		camera = std::make_unique<Camera>(platform.get());
+		gui = std::make_unique<GUI>();
+		gui->initialize(window.getPlatformWindow(), renderContext.get());
+	}
 
-		auto bytes = resourceManager->loadFile("blocks.json");
-		json::Parser parser{bytes.value()};
+	TextureAtlasSprite::Info makeSprite(const std::string& path) {
+		auto data = resourceManager->loadTextureData(path);
+		return { path, data.value() };
+	}
 
-		auto object = parser.parse().value().as_object().value();
-		auto format_version = object.extract("format_version");
-
-		for (auto& [name, obj] : object) {
-			TileTextures tileTextures;
-
-			if (auto textures = obj.get("textures")) {
-				std::cout << name << std::endl;
-
-				tileTextures.read(textures.value());
-			}
-		}
+	void loadBlocks() {
+//		auto bytes = resourceManager->loadFile("blocks.json");
+//		auto object = json::Parser{bytes.value()}.parse().value().as_object().value();
+//		auto format_version = object.extract("format_version");
+//
+//		for (auto& [name, obj] : object) {
+//			TileTextures tileTextures;
+//
+//			if (auto textures = obj.get("textures")) {
+////				std::cout << name << std::endl;
+//
+//				tileTextures.read(textures.value());
+//			}
+//		}
 	}
 
 	void tick() {
@@ -212,17 +226,41 @@ struct GameClient {
 			.camera = proj * glm::translate(view, -position)
 		};
 
+//		vk::DescriptorImageInfo imageInfo{
+//			.sampler = agent->material->sampler,
+//			.imageView = atlas->renderTexture->view,
+//			.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+//		};
+//
+//		vk::WriteDescriptorSet writeDescriptorSet{
+//				.dstSet = agent->material->descriptorSet,
+//				.dstBinding = 0,
+//				.dstArrayElement = 0,
+//				.descriptorCount = 1,
+//				.descriptorType = vk::DescriptorType::eCombinedImageSampler,
+//				.pImageInfo = &imageInfo,
+//		};
+//
+//		core->device().updateDescriptorSets(1, &writeDescriptorSet, 0, nullptr);
+
+		gui->begin();
+		ImGui::SetNextWindowPos(ImVec2(0, 0));
+		ImGui::Begin("Test", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
+//		ImGui::Image(atlas->renderTexture, ImVec2(512, 512));
+		ImGui::End();
+		gui->end();
+
 		auto cmd = renderContext->begin();
 		cmd.setViewport(0, 1, &viewport);
 		cmd.setScissor(0, 1, &scissor);
-
 		agent->render(cmd, transform);
+		gui->draw(cmd);
 		renderContext->end();
 	}
 
-	void setRenderingSize(int width, int height) {
-		renderContext->setRenderingSize(width, height);
-		camera->setRenderingSize(width, height);
+	void setRenderSize(int width, int height) {
+		renderContext->setRenderSize(width, height);
+		camera->setRenderSize(width, height);
 
 		viewport.width = width;
 		viewport.height = height;
@@ -301,8 +339,10 @@ private:
 	std::unique_ptr<TextureManager> textureManager;
 	std::unique_ptr<RenderContext> renderContext;
 	std::unique_ptr<AgentRenderer> agent;
+	std::unique_ptr<TextureAtlas> atlas;
 
 	std::unique_ptr<Camera> camera;
+	std::unique_ptr<GUI> gui;
 
 	vk::Viewport viewport{
 		.x = 0,
@@ -333,7 +373,7 @@ int main(int, char**) {
 
 	GameClient client{};
 	client.init(window);
-	client.setRenderingSize(width, height);
+	client.setRenderSize(width, height);
 
 	while (!window.shouldClose()) {
 		if (client.wantToQuit()) {

@@ -7,8 +7,10 @@
 #include "CommandPool.hpp"
 #include "DescriptorPool.hpp"
 
+struct RenderContext;
+
 struct GUI {
-	void initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCount);
+	void initialize(GLFWwindow* window, RenderContext* renderContext);
 
 	void terminate();
 
@@ -32,7 +34,7 @@ private:
 
 	void setupRenderState(ImDrawData *draw_data, vk::CommandBuffer cmd, RenderBuffer *rb, int fb_width, int fb_height);
 
-	void createFontsTexture();
+	void createFontsTexture(RenderContext* renderContext);
 
 	void updateMousePosAndButtons();
 
@@ -52,7 +54,7 @@ private:
 	vk::Pipeline _pipeline;
 
 	vk::Sampler _fontSampler;
-	Texture _fontTexture;
+	RenderTexture* _fontTexture;
 
 	DescriptorPool _descriptorPool;
 

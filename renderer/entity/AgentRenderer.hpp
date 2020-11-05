@@ -6,7 +6,7 @@
 #include "VertexBuilder.hpp"
 #include "renderer/RenderBuffer.hpp"
 #include "renderer/texture/Texture.hpp"
-
+#include "renderer/texture/TextureManager.hpp"
 #include "stb_image.hpp"
 
 #include "Json.hpp"
@@ -21,9 +21,9 @@ struct AgentRenderer {
 	std::unique_ptr<Material> material;
 
 	AgentRenderer(AppPlatform* platform, ResourceManager* resourceManager, TextureManager* textureManager, RenderContext* renderer) {
-		texture = textureManager->getTexture("textures/entity/agent.png");
+		texture = textureManager->getTexture("textures/entity/agent");
 
-		material = std::make_unique<Material>(platform, resourceManager, renderer);
+		material = std::make_unique<Material>(platform, renderer);
 		material->SetTexture(texture);
 
 		if (auto bytes = resourceManager->loadFile("models/mobs.json")) {
@@ -181,9 +181,6 @@ struct AgentRenderer {
 	}
 
 	~AgentRenderer() {
-		texture->destroy();
-		delete texture;
-
 		renderBuffer.destroy();
 	}
 

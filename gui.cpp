@@ -3,11 +3,12 @@
 #include <cstdint>
 
 #include "DescriptorPool.hpp"
-#include "RenderSystem.hpp"
+#include "renderer/RenderSystem.hpp"
 
 #include "imgui.h"
 
 #include <GLFW/glfw3.h>
+#include <renderer/RenderContext.hpp>
 
 namespace {
 	inline static constexpr uint32_t __glsl_shader_vert_spv[] = {
@@ -83,7 +84,7 @@ namespace {
 	};
 }
 
-void GUI::initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCount) {
+void GUI::initialize(GLFWwindow* window, RenderContext* renderContext) {
 	_window = window;
 
     IMGUI_CHECKVERSION();
@@ -145,9 +146,8 @@ void GUI::initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCou
 #endif
 
 	_frameIndex = 0;
-	_frameCount = frameCount;
-	_renderBuffers.resize(frameCount);
-
+	_frameCount = renderContext->frameCount;
+	_renderBuffers.resize(_frameCount);
 
 	ImGui::StyleColorsDark();
 
@@ -312,98 +312,48 @@ void GUI::initialize(GLFWwindow* window, vk::RenderPass renderPass, int frameCou
 		.pColorBlendState = &colorBlendState,
 		.pDynamicState = &dynamicState,
 		.layout = _pipelineLayout,
-		.renderPass = renderPass,
+		.renderPass = renderContext->renderPass,
 	};
 
 	core->device().createGraphicsPipelines(nullptr, 1, &pipeline_create_info, nullptr, &_pipeline);
 	core->device().destroyShaderModule(vert_module, nullptr);
 	core->device().destroyShaderModule(frag_module, nullptr);
 
-	createFontsTexture();
+	createFontsTexture(renderContext);
 }
 
-void GUI::createFontsTexture() {
-//	auto cmd = vkx::allocate(_commandPool, vk::CommandBufferLevel::ePrimary);
-//	cmd.begin({ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-//
-//	ImGuiIO &io = ImGui::GetIO();
-//
-//	unsigned char *pixels;
-//	int width, height;
-//	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-//	size_t upload_size = width * height * 4 * sizeof(char);
-//
-//	_fontTexture = Texture::create2D(vk::Format::eR8G8B8A8Unorm, width, height, _fontSampler);
-//	_fontTexture.updateDescriptorSet(_fontDescriptor);
-//
-//	// Copy to Image:
-//	{
-//		vk::BufferCreateInfo srcBufferCreateInfo { .size = upload_size, .usage = vk::BufferUsageFlagBits::eTransferSrc };
-//
-//		auto srcBuffer = Buffer::create(srcBufferCreateInfo, { .usage = VMA_MEMORY_USAGE_CPU_ONLY });
-//		std::memcpy(srcBuffer.map(), pixels, upload_size);
-//		srcBuffer.unmap();
-//
-//		vk::ImageMemoryBarrier copy_barrier {
-//			.dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-//			.oldLayout = vk::ImageLayout::eUndefined,
-//			.newLayout = vk::ImageLayout::eTransferDstOptimal,
-//			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-//			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-//			.image = _fontTexture.image,
-//			.subresourceRange {
-//				.aspectMask = vk::ImageAspectFlagBits::eColor,
-//				.levelCount = 1,
-//				.layerCount = 1
-//			}
-//		};
-//
-//		cmd.pipelineBarrier(vk::PipelineStageFlagBits::eHost, vk::PipelineStageFlagBits::eTransfer, {}, 0, nullptr, 0, nullptr, 1, &copy_barrier);
-//
-//		vk::BufferImageCopy region {
-//			.imageSubresource {
-//				.aspectMask = vk::ImageAspectFlagBits::eColor,
-//				.layerCount = 1
-//			},
-//			.imageExtent = {
-//				.width = static_cast<uint32_t>(width),
-//				.height = static_cast<uint32_t>(height),
-//				.depth = 1
-//			}
-//		};
-//
-//		cmd.copyBufferToImage(srcBuffer, _fontTexture.image, vk::ImageLayout::eTransferDstOptimal, 1, &region);
-//
-//		vk::ImageMemoryBarrier use_barrier {
-//			.srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-//			.dstAccessMask = vk::AccessFlagBits::eShaderRead,
-//			.oldLayout = vk::ImageLayout::eTransferDstOptimal,
-//			.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-//			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-//			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-//			.image = _fontTexture.image,
-//			.subresourceRange = {
-//				.aspectMask = vk::ImageAspectFlagBits::eColor,
-//				.levelCount = 1,
-//				.layerCount = 1,
-//			}
-//		};
-//
-//		cmd.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, {}, 0, nullptr, 0, nullptr, 1, &use_barrier);
-//
-//		cmd.end();
-//
-//		vk::SubmitInfo submitInfo{
-//			.commandBufferCount = 1,
-//			.pCommandBuffers = &cmd
-//		};
-//		core->graphicsQueue().submit(1, &submitInfo, nullptr);
-//		core->graphicsQueue().waitIdle();
-//
-//		srcBuffer.destroy();
-//	}
-//
-//	io.Fonts->TexID = (ImTextureID) (VkDescriptorSet) _fontDescriptor;
+void GUI::createFontsTexture(RenderContext* renderContext) {
+	auto cmd = renderContext->commandPool.allocate(vk::CommandBufferLevel::ePrimary);
+	cmd.begin({ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+
+	ImGuiIO &io = ImGui::GetIO();
+
+	unsigned char *pixels;
+	int width, height;
+	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+	_fontTexture = renderContext->createTexture2D(vk::Format::eR8G8B8A8Unorm, width, height);
+
+	vk::DescriptorImageInfo imageInfo{
+		.sampler = _fontSampler,
+		.imageView = _fontTexture->view,
+		.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+	};
+
+	vk::WriteDescriptorSet writeDescriptorSet{
+			.dstSet = _fontDescriptor,
+			.dstBinding = 0,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = vk::DescriptorType::eCombinedImageSampler,
+			.pImageInfo = &imageInfo,
+	};
+
+	core->device().updateDescriptorSets(1, &writeDescriptorSet, 0, nullptr);
+
+	renderContext->textureSubImage2D(_fontTexture, width, height, 4, pixels);
+
+	io.Fonts->TexID = (ImTextureID) (VkDescriptorSet) _fontDescriptor;
 }
 
 void GUI::terminate() {
@@ -419,7 +369,7 @@ void GUI::terminate() {
 		_renderBuffers[n].destroy();
 	}
 	_renderBuffers.clear();
-	_fontTexture.destroy();
+//	_fontTexture.destroy();
 
 	_descriptorPool.free(_fontDescriptor);
 	_descriptorPool.destroy();
@@ -529,6 +479,9 @@ void GUI::draw(vk::CommandBuffer cmd) {
 									uint32_t(clip_rect.w - clip_rect.y)
 							}
 					};
+
+					vk::DescriptorSet texture = (VkDescriptorSet)(intptr_t)pcmd->TextureId;
+					cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _pipelineLayout, 0, 1, &texture, 0, nullptr);
 
 					cmd.setScissor(0, 1, &scissor);
 					cmd.drawIndexed(pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);

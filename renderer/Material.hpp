@@ -20,7 +20,7 @@ struct Material {
 	vk::PipelineLayout pipelineLayout;
 	vk::Pipeline pipeline;
 
-	Material(AppPlatform* platform, ResourceManager* resourceManager, RenderContext* renderContext) {
+	Material(AppPlatform* platform, RenderContext* renderContext) {
 		vk::SamplerCreateInfo samplerCreateInfo{
 			.magFilter = vk::Filter::eNearest,
 			.minFilter = vk::Filter::eNearest,
@@ -40,7 +40,7 @@ struct Material {
 				.descriptorType = vk::DescriptorType::eCombinedImageSampler,
 				.descriptorCount = 1,
 				.stageFlags = vk::ShaderStageFlagBits::eFragment,
-				.pImmutableSamplers = nullptr
+				.pImmutableSamplers = &sampler
 		};
 
 		vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{
@@ -163,8 +163,8 @@ struct Material {
 
 	void SetTexture(Texture* texture) {
 		vk::DescriptorImageInfo imageInfo{
-				.sampler = sampler,
-				.imageView = texture->view,
+				.sampler = texture->renderTexture->sampler,
+				.imageView = texture->renderTexture->view,
 				.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
 		};
 

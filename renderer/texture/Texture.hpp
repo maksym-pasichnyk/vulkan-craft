@@ -2,19 +2,16 @@
 
 #include <cstdint>
 
-#include <vulkan/vulkan.hpp>
-
-#include "RenderSystem.hpp"
-
-#include "Image.hpp"
-#include "Buffer.hpp"
+struct RenderTexture;
+struct TextureManager;
 
 struct Texture {
-	Image image;
-	vk::ImageView view;
+	RenderTexture* renderTexture{nullptr};
 
-	void destroy() {
-		RenderSystem::Instance()->device().destroyImageView(view, nullptr);
-		image.destroy();
-	}
+	Texture() = default;
+	Texture(RenderTexture* renderTexture)
+		: renderTexture(renderTexture) {}
+
+	virtual ~Texture() = default;
+	virtual void loadTexture(TextureManager* textureManager) {}
 };

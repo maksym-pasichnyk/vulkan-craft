@@ -705,8 +705,8 @@ struct BlockTessellator {
 	}
 
 	inline void tessellateRailInWorld(Tile* tile, const TilePos& tilePos) {
-		int x = tilePos.x;
-		int y = tilePos.y;
+		int x = tilePos.originX;
+		int y = tilePos.originY;
 		int z = tilePos.z;
 
 		tessellator->color(0xFF, 0xFF, 0xFF);
@@ -793,8 +793,8 @@ struct BlockTessellator {
 	}
 
 	inline void tessellateFlowerInWorld(Tile* tile, const TilePos& tilePos) {
-		int x = tilePos.x;
-		int y = tilePos.y;
+		int x = tilePos.originX;
+		int y = tilePos.originY;
 		int z = tilePos.z;
 
 		auto zero = Vector3::Zero;
@@ -946,8 +946,8 @@ struct BlockTessellator {
 	}
 
 	inline void tessellateHopperInWorld(Tile* tile, const TilePos& tilePos) {
-		int x = tilePos.x;
-		int y = tilePos.y;
+		int x = tilePos.originX;
+		int y = tilePos.originY;
 		int z = tilePos.z;
 
 		tessellator->color(0xFF, 0xFF, 0xFF);
@@ -1067,8 +1067,8 @@ struct BlockTessellator {
 	}
 
 	inline void tessellateFireInWorld(Tile* tile, const TilePos& tilePos) {
-		int x = tilePos.x;
-		int y = tilePos.y;
+		int x = tilePos.originX;
+		int y = tilePos.originY;
 		int z = tilePos.z;
 
 		TextureUVCoordinateSet fire{0, 0, 1, 1};
@@ -1914,13 +1914,13 @@ private:
 			texture.getInterpolatedU(u1), texture.getInterpolatedV(v1),
 		};
 
-		int x = tilePos.x;
-		int y = tilePos.y;
+		int x = tilePos.originX;
+		int y = tilePos.originY;
 		int z = tilePos.z;
-        tessellator->vertexUV(p1.x + x, p1.y + y, p1.z + z, coords[0], coords[1], 15);
-        tessellator->vertexUV(p2.x + x, p2.y + y, p2.z + z, coords[0], coords[3], 15);
-        tessellator->vertexUV(p3.x + x, p3.y + y, p3.z + z, coords[2], coords[3], 15);
-        tessellator->vertexUV(p4.x + x, p4.y + y, p4.z + z, coords[2], coords[1], 15);
+        tessellator->vertexUV(p1.originX + x, p1.originY + y, p1.z + z, coords[0], coords[1], 15);
+        tessellator->vertexUV(p2.originX + x, p2.originY + y, p2.z + z, coords[0], coords[3], 15);
+        tessellator->vertexUV(p3.originX + x, p3.originY + y, p3.z + z, coords[2], coords[3], 15);
+        tessellator->vertexUV(p4.originX + x, p4.originY + y, p4.z + z, coords[2], coords[1], 15);
 	}
 
 	inline void rotateFace(const TilePos& pos, const Vector3& p1, const Vector3& p2, const Vector3& p3, const Vector3& p4, int rot, int texRot, const TextureUVCoordinateSet& texture, float u0, float v0, float u1, float v1) {
@@ -1930,10 +1930,10 @@ private:
 		Vector3 vertex4 = p4;
 
 		for (int i = 0; i < rot; i++) {
-			vertex1 = {vertex1.z, vertex1.y, 1.0f - vertex1.x};
-			vertex2 = {vertex2.z, vertex2.y, 1.0f - vertex2.x};
-			vertex3 = {vertex3.z, vertex3.y, 1.0f - vertex3.x};
-			vertex4 = {vertex4.z, vertex4.y, 1.0f - vertex4.x};
+			vertex1 = {vertex1.z, vertex1.originY, 1.0f - vertex1.originX};
+			vertex2 = {vertex2.z, vertex2.originY, 1.0f - vertex2.originX};
+			vertex3 = {vertex3.z, vertex3.originY, 1.0f - vertex3.originX};
+			vertex4 = {vertex4.z, vertex4.originY, 1.0f - vertex4.originX};
 		}
 
 		Vector2 uv00{u0, v0};
@@ -1942,26 +1942,26 @@ private:
 		Vector2 uv10{u1, v0};
 
 		for (int i = 0; i < texRot; i++) {
-			uv00 = {uv00.y, 1.0f - uv00.x};
-			uv01 = {uv01.y, 1.0f - uv01.x};
-			uv11 = {uv11.y, 1.0f - uv11.x};
-			uv10 = {uv10.y, 1.0f - uv10.x};
+			uv00 = {uv00.originY, 1.0f - uv00.originX};
+			uv01 = {uv01.originY, 1.0f - uv01.originX};
+			uv11 = {uv11.originY, 1.0f - uv11.originX};
+			uv10 = {uv10.originY, 1.0f - uv10.originX};
 		}
 
 		const float coords[8] {
-			texture.getInterpolatedU(uv00.x), texture.getInterpolatedV(uv00.y),
-			texture.getInterpolatedU(uv01.x), texture.getInterpolatedV(uv01.y),
-			texture.getInterpolatedU(uv11.x), texture.getInterpolatedV(uv11.y),
-			texture.getInterpolatedU(uv10.x), texture.getInterpolatedV(uv10.y),
+			texture.getInterpolatedU(uv00.originX), texture.getInterpolatedV(uv00.originY),
+			texture.getInterpolatedU(uv01.originX), texture.getInterpolatedV(uv01.originY),
+			texture.getInterpolatedU(uv11.originX), texture.getInterpolatedV(uv11.originY),
+			texture.getInterpolatedU(uv10.originX), texture.getInterpolatedV(uv10.originY),
 		};
 
-		int x = pos.x;
-		int y = pos.y;
+		int x = pos.originX;
+		int y = pos.originY;
 		int z = pos.z;
-        tessellator->vertexUV(vertex1.x + x, vertex1.y + y, vertex1.z + z, coords[0], coords[1], 15);
-        tessellator->vertexUV(vertex2.x + x, vertex2.y + y, vertex2.z + z, coords[2], coords[3], 15);
-        tessellator->vertexUV(vertex3.x + x, vertex3.y + y, vertex3.z + z, coords[4], coords[5], 15);
-        tessellator->vertexUV(vertex4.x + x, vertex4.y + y, vertex4.z + z, coords[6], coords[7], 15);
+        tessellator->vertexUV(vertex1.originX + x, vertex1.originY + y, vertex1.z + z, coords[0], coords[1], 15);
+        tessellator->vertexUV(vertex2.originX + x, vertex2.originY + y, vertex2.z + z, coords[2], coords[3], 15);
+        tessellator->vertexUV(vertex3.originX + x, vertex3.originY + y, vertex3.z + z, coords[4], coords[5], 15);
+        tessellator->vertexUV(vertex4.originX + x, vertex4.originY + y, vertex4.z + z, coords[6], coords[7], 15);
 	}
 
 	inline void apply(ModelTransform* modelTransform, Vector3& p1, Vector3& p2, Vector3& p3, Vector3& p4) {

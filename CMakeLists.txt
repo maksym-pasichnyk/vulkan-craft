@@ -50,13 +50,12 @@ add_executable(vcraft
     gui.hpp
     mem_alloc.hpp
     mem_alloc.cpp
-    RenderSystem.hpp
+        renderer/RenderSystem.hpp
     CommandPool.hpp
     renderer/RenderBuffer.hpp
     resources/ResourceManager.hpp
     Buffer.hpp
-    Image.hpp
-    renderer/texture/Texture.hpp
+        renderer/texture/Texture.hpp
     DescriptorPool.hpp
     Input.hpp
     GameWindow.hpp
@@ -772,7 +771,7 @@ add_executable(vcraft
     world/tile/YellowFlowerTile.cpp
     world/tile/YellowGlazedTerracottaTile.hpp
     world/tile/YellowGlazedTerracottaTile.cpp
-)
+        util/math/Rect2D.hpp renderer/texture/TextureAtlas.hpp renderer/texture/NativeImage.hpp renderer/RenderMaterial.hpp renderer/RenderSystem.cpp renderer/RenderContext.cpp)
 
 target_compile_definitions(vcraft PUBLIC
     "-DGLFW_INCLUDE_NONE"

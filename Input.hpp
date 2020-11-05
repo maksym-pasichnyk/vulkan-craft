@@ -3,7 +3,7 @@
 #include <unordered_set>
 #include <cstring>
 
-#include "RenderSystem.hpp"
+#include "renderer/RenderSystem.hpp"
 
 enum class CursorState {
 	Normal,

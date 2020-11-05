@@ -165,7 +165,7 @@ struct Console {
 		ImGui::SetNextWindowBgAlpha(0.5f);
 		ImGui::Begin("Console", nullptr, ImGuiWindowFlags_NoTitleBar /*| ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize*/);
 
-		const float footer_height_to_reserve = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
+		const float footer_height_to_reserve = ImGui::GetStyle().ItemSpacing.originY + ImGui::GetFrameHeightWithSpacing();
 		ImGui::BeginChild("ScrollingRegion", ImVec2(0, -footer_height_to_reserve), false, ImGuiWindowFlags_HorizontalScrollbar);
 
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1));

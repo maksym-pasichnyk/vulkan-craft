@@ -7,6 +7,8 @@
 
 #include "ResourcePack.hpp"
 
+#include "renderer/texture/NativeImage.hpp"
+
 struct ResourceManager {
 	void addResourcePack(ResourcePackPtr&& resourcePack) {
 		resourcePacks.emplace_back(std::move(resourcePack));
@@ -16,6 +18,15 @@ struct ResourceManager {
 		for (auto& resourcePack : resourcePacks) {
 			if (auto value = resourcePack->loadFile(path)) {
 				return std::move(value);
+			}
+		}
+		return std::nullopt;
+	}
+
+	std::optional<NativeImage> loadTextureData(const std::string& name) {
+		for (auto ext : {".png", ".tga"}) {
+			if (auto bytes = loadFile(name + ext)) {
+				return NativeImage::read(*bytes);
 			}
 		}
 		return std::nullopt;
