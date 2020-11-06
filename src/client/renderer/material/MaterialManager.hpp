@@ -31,16 +31,15 @@ struct MaterialManager {
 					{.stage = vk::ShaderStageFlagBits::eFragment, .module = fragmentShader, .pName = "main"},
 			};
 
-			auto material = new Material(renderContext, stages);
-			materials.emplace(name, material);
+			materials.emplace(name, new Material(renderContext, stages));
 
 			core->device().destroyShaderModule(vertexShader, nullptr);
 			core->device().destroyShaderModule(fragmentShader, nullptr);
 		}
 	}
 
-	Material* getMaterial(const std::string& name) {
-		return materials.at(name);
+	Handle<Material> getMaterial(const std::string& name) {
+		return Handle(materials.at(name));
 	}
 
 private:
@@ -57,5 +56,5 @@ private:
 		return core->device().createShaderModule(shaderModuleCreateInfo);
 	}
 
-	std::map<std::string, Material*> materials;
+	std::map<std::string, std::unique_ptr<Material>> materials;
 };

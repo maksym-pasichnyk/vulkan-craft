@@ -76,10 +76,10 @@ add_executable(vcraft
     src/util/math/AABB.hpp
     src/client/renderer/TextureUVCoordinateSet.hpp
     src/world/tile/Tile.hpp
-    src/client/renderer/entity/AgentRenderer.hpp
-    src/client/renderer/model/ModelGeometry.hpp
-    src/client/renderer/model/ModelPart.hpp
-    src/client/renderer/model/ModelPartBox.hpp
+        src/client/renderer/entity/EntityRenderer.hpp
+        src/client/renderer/model/ParsedModelGeometry.hpp
+        src/client/renderer/model/ParsedGeometryBoneNode.hpp
+        src/client/renderer/model/ParsedGeometryBoneElement.hpp
     src/client/renderer/PositionTextureVertex.hpp
     src/client/renderer/TexturedQuad.hpp
     src/client/renderer/model/ModelBox.hpp
