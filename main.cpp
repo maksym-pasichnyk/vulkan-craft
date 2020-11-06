@@ -4,57 +4,24 @@
 
 #include "client/AppPlatform.hpp"
 
-#include "GameWindow.hpp"
-#include "Clock.hpp"
-#include "Mouse.hpp"
-#include "Keyboard.hpp"
-#include "gui.hpp"
+#include "client/GameWindow.hpp"
+#include "client/Clock.hpp"
+#include "client/Mouse.hpp"
+#include "client/Keyboard.hpp"
+#include "client/gui/gui.hpp"
 
 #include "resources/ResourceManager.hpp"
 
-#include "renderer/RenderContext.hpp"
-#include "renderer/entity/AgentRenderer.hpp"
-#include "renderer/texture/TextureManager.hpp"
-#include "renderer/texture/TextureAtlas.hpp"
+#include "client/renderer/RenderContext.hpp"
+#include "client/renderer/entity/AgentRenderer.hpp"
+#include "client/renderer/texture/TextureManager.hpp"
+#include "client/renderer/texture/TextureAtlas.hpp"
+#include "client/renderer/material/MaterialManager.hpp"
+
+#include "client/renderer/BlockTessellator.hpp"
 
 #include "world/tile/Tile.hpp"
 
-enum class ConnectionBit {
-    None = 0,
-    West = 1,
-    North = 2,
-    East = 4,
-    South = 8,
-};
-
-inline constexpr auto operator&&(ConnectionBit __lhs, ConnectionBit __rhs) -> bool {
-    using base = std::underlying_type<ConnectionBit>::type;
-    return (base(__lhs) & base(__rhs)) != base(0);
-}
-
-inline constexpr auto operator|(ConnectionBit __lhs, ConnectionBit __rhs) -> ConnectionBit {
-    using base = std::underlying_type<ConnectionBit>::type;
-    return ConnectionBit(base(__lhs) | base(__rhs));
-}
-
-enum class FlammableBit {
-    Up = 1,
-    Down = 2,
-    North = 4,
-    South = 8,
-    East = 16,
-    West = 32
-};
-
-inline constexpr auto operator|(FlammableBit __lhs, FlammableBit __rhs) -> FlammableBit {
-    using base = std::underlying_type<FlammableBit>::type;
-    return FlammableBit(base(__lhs) | base(__rhs));
-}
-
-inline constexpr auto operator|=(FlammableBit& __lhs, FlammableBit __rhs) -> FlammableBit& {
-    using base = std::underlying_type<FlammableBit>::type;
-    return __lhs = FlammableBit(base(__lhs) | base(__rhs));
-}
 
 struct Camera {
 	Camera(AppPlatform* platform) {
@@ -96,26 +63,6 @@ private:
 
 	glm::mat4 _projection;
 };
-
-//struct TextureSlot {
-//	consteval TextureSlot(std::string_view name) : name(name), parent(nullptr) {}
-//	consteval TextureSlot(std::string_view name, TextureSlot& parent) : name(name), parent(&parent) {}
-//
-//private:
-//	std::string_view name;
-//	TextureSlot* parent;
-//};
-//
-//struct TextureSlots {
-//	inline static constinit TextureSlot Texture = TextureSlot("texture");
-//	inline static constinit TextureSlot Side = TextureSlot("side", Texture);
-//	inline static constinit TextureSlot Top = TextureSlot("top", Texture);
-//	inline static constinit TextureSlot Bottom = TextureSlot("bottom", Texture);
-//	inline static constinit TextureSlot North = TextureSlot("north", Side);
-//	inline static constinit TextureSlot South = TextureSlot("south", Side);
-//	inline static constinit TextureSlot East = TextureSlot("east", Side);
-//	inline static constinit TextureSlot West = TextureSlot("west", Side);
-//};
 
 struct TileTextures {
 	std::optional<std::string> up;
@@ -169,26 +116,23 @@ struct GameClient {
 		renderContext = std::make_unique<RenderContext>();
 
 		resourceManager = std::make_unique<ResourceManager>();
-		textureManager = std::make_unique<TextureManager>(renderContext.get(), resourceManager.get());
-		resourceManager->addResourcePack(std::make_unique<ResourcePack>("assets/resource_packs/vanilla"));
+		textureManager = std::make_unique<TextureManager>(renderContext, resourceManager);
+		materialManager = std::make_unique<MaterialManager>();
 
-		agent = std::make_unique<AgentRenderer>(platform.get(), resourceManager.get(), textureManager.get(), renderContext.get());
+		resourceManager->addResourcePack(std::make_unique<ResourcePack>("assets/resource_packs/vanilla"));
+		materialManager->loadMetaFile(platform, renderContext);
+
+		agent = std::make_unique<AgentRenderer>(resourceManager, textureManager, materialManager);
 
 		atlas = std::make_unique<TextureAtlas>();
-		atlas->loadMetaFile(resourceManager.get());
-		textureManager->upload("textures/blocks", atlas.get());
+		atlas->loadMetaFile(resourceManager);
+		textureManager->upload("textures/blocks", atlas);
 
 		loadBlocks();
-		Tile::initTiles(textureManager.get());
+		Tile::initTiles(textureManager);
 
 		camera = std::make_unique<Camera>(platform.get());
-		gui = std::make_unique<GUI>();
-		gui->initialize(window.getPlatformWindow(), renderContext.get());
-	}
-
-	TextureAtlasSprite::Info makeSprite(const std::string& path) {
-		auto data = resourceManager->loadTextureData(path);
-		return { path, data.value() };
+		gui = std::make_unique<GUI>(window.getPlatformWindow(), renderContext);
 	}
 
 	void loadBlocks() {
@@ -225,23 +169,6 @@ struct GameClient {
 		CameraTransform transform {
 			.camera = proj * glm::translate(view, -position)
 		};
-
-//		vk::DescriptorImageInfo imageInfo{
-//			.sampler = agent->material->sampler,
-//			.imageView = atlas->renderTexture->view,
-//			.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
-//		};
-//
-//		vk::WriteDescriptorSet writeDescriptorSet{
-//				.dstSet = agent->material->descriptorSet,
-//				.dstBinding = 0,
-//				.dstArrayElement = 0,
-//				.descriptorCount = 1,
-//				.descriptorType = vk::DescriptorType::eCombinedImageSampler,
-//				.pImageInfo = &imageInfo,
-//		};
-//
-//		core->device().updateDescriptorSets(1, &writeDescriptorSet, 0, nullptr);
 
 		gui->begin();
 		ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -334,10 +261,10 @@ private:
 	Clock clock;
 
 	std::unique_ptr<AppPlatform> platform;
-
-	std::unique_ptr<ResourceManager> resourceManager;
-	std::unique_ptr<TextureManager> textureManager;
 	std::unique_ptr<RenderContext> renderContext;
+	std::unique_ptr<ResourceManager> resourceManager;
+	std::unique_ptr<MaterialManager> materialManager;
+	std::unique_ptr<TextureManager> textureManager;
 	std::unique_ptr<AgentRenderer> agent;
 	std::unique_ptr<TextureAtlas> atlas;
 
