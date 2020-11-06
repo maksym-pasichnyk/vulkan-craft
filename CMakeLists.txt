@@ -3,9 +3,12 @@ project(vcraft)
 
 set(CMAKE_CXX_STANDARD 20)
 
+add_subdirectory(lib/fmt)
+
 include_directories(.)
 include_directories(src)
 include_directories(lib)
+include_directories(lib/fmt/include)
 
 function(add_shaders TARGET)
     set(SPIRV_BINARY_FILES)
@@ -24,8 +27,8 @@ function(add_shaders TARGET)
 endfunction()
 
 add_shaders(shaders
-        assets/shaders/entity.frag
-        assets/shaders/entity.vert
+    assets/shaders/entity.frag
+    assets/shaders/entity.vert
 )
 
 add_library(imgui STATIC
@@ -779,7 +782,9 @@ add_executable(vcraft
     src/client/renderer/RenderSystem.cpp
     src/client/renderer/RenderContext.cpp
     src/client/renderer/material/MaterialManager.hpp
-    src/client/util/Handle.hpp src/util/ConnectionBit.hpp src/util/FlammableBit.hpp)
+    src/client/util/Handle.hpp
+    src/util/ConnectionBit.hpp
+    src/util/FlammableBit.hpp)
 
 target_compile_definitions(vcraft PUBLIC
     "-DGLFW_INCLUDE_NONE"
@@ -793,7 +798,7 @@ target_compile_definitions(vcraft PUBLIC
     "-DVULKAN_HPP_NO_STRUCT_CONSTRUCTORS"
 )
 
-target_link_libraries(vcraft glfw vulkan imgui)
+target_link_libraries(vcraft glfw vulkan imgui fmt)
 add_dependencies(vcraft shaders)
 
 execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/assets ${CMAKE_BINARY_DIR}/assets)
