@@ -13,3 +13,7 @@
 [submodule "json"]
 	path = lib/json
 	url = https://github.com/max-pasichnyk/json.git
+
+[submodule "v8"]
+	path = lib/v8
+	url = https://github.com/v8/v8.git
