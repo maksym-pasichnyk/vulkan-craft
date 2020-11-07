@@ -2,6 +2,8 @@
 
 #include "vec.hpp"
 
+#include "nlohmann/json.hpp"
+
 template <typename T>
 struct vec<2, T> {
 	using value_type = T;
@@ -26,6 +28,18 @@ struct vec<2, T> {
 	constexpr value_type operator[](size_t i) const && {
 		return this->*fields[i];
 	}
+
+	friend void to_json(nlohmann::json& value, const vec& __self) {
+        value = {
+        	__self.x,
+        	__self.y
+		};
+    }
+
+    friend void from_json(const nlohmann::json& value, vec& __self) {
+        value.at(0).get_to(__self.x);
+        value.at(1).get_to(__self.y);
+    }
 
 private:
 	inline static constexpr float vec::* const fields[2] {

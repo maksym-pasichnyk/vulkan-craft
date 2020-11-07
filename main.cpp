@@ -17,23 +17,23 @@
 #include "client/renderer/texture/TextureManager.hpp"
 #include "client/renderer/texture/TextureAtlas.hpp"
 #include "client/renderer/material/MaterialManager.hpp"
-#include "client/renderer/model/ParsedModelGeometry.hpp"
+#include "client/renderer/model/ModelFormat.hpp"
 
 #include "client/renderer/BlockTessellator.hpp"
 
 #include "world/tile/Tile.hpp"
 
+#include "nlohmann/json.hpp"
+
+using Json = nlohmann::json;
 
 struct Camera {
 	Camera(AppPlatform* platform) {
-		auto bytes = platform->readAssetFile("definitions/cameras/cameras/first_person.json");
+		auto object = Json::parse(platform->readAssetFile("definitions/cameras/cameras/first_person.json"));
 
-		json::Parser parser(bytes);
-		auto object = parser.parse().value().as_object().value();
-
-		field_of_view = object.at("field_of_view").as_f64().value();
-		near_clipping_plane = object.at("near_clipping_plane").as_f64().value();
-		far_clipping_plane = object.at("far_clipping_plane").as_f64().value();
+		field_of_view = object.at("field_of_view").get<float>();
+		near_clipping_plane = object.at("near_clipping_plane").get<float>();
+		far_clipping_plane = object.at("far_clipping_plane").get<float>();
 	}
 
 	void setRenderSize(int width, int height) {
@@ -65,50 +65,12 @@ private:
 	glm::mat4 _projection;
 };
 
-struct TileTextures {
-	std::optional<std::string> up;
-	std::optional<std::string> down;
-	std::optional<std::string> north;
-	std::optional<std::string> south;
-	std::optional<std::string> east;
-	std::optional<std::string> west;
-
-	void read(json::Value& textures) {
-		if (auto textureObj = textures.as_string()) {
-			auto& texture = textureObj.value();
-			up = texture;
-			down = texture;
-			north = texture;
-			south = texture;
-			east = texture;
-			west = texture;
-		} else {
-			auto side = textures.get("side");
-
-			up = get(textures, "up");
-			down = get(textures, "down");
-			north = get(textures, "north", side);
-			south = get(textures, "north", side);
-			east = get(textures, "east", side);
-			west = get(textures, "west", side);
-		}
-	}
-
-private:
-	static std::string get(json::Value& textures, const std::string& name) {
-		return textures.get(name).value().as_string().value();
-	}
-
-	static std::string get(json::Value& textures, const std::string& name, json::Result<json::Value> other) {
-		if (auto texture = textures.get(name)) {
-			return texture.value().as_string().value();
-		}
-		return other.value().as_string().value();
-	}
-};
-
 struct GameClient {
 	RenderSystem* core = RenderSystem::Instance();
+
+	~GameClient() {
+		core->device().waitIdle();
+	}
 
 	void init(GameWindow& window) {
 		core->init(window.getPlatformWindow());
@@ -126,13 +88,6 @@ struct GameClient {
 		loadEntities();
 		loadModels();
 
-		auto material = materialManager->getMaterial("agent");
-		material->SetTexture(textureManager->getTexture("textures/entity/agent"));
-
-
-
-//		agentRenderer = std::make_unique<EntityRenderer>(resourceManager, material);
-
 		atlas = std::make_unique<TextureAtlas>();
 		atlas->loadMetaFile(resourceManager);
 		textureManager->upload("textures/blocks", atlas);
@@ -145,161 +100,50 @@ struct GameClient {
 	}
 
 	void loadEntities() {
-		auto bytes = resourceManager->loadFile("entity/agent.entity.json").value();
-		auto entity_obj = json::Parser{bytes}.parse().value().as_object().value();
-		auto& client_entity = entity_obj.at("minecraft:client_entity").as_object().value();
-		auto& description = client_entity.at("description").as_object().value();
-		auto& identifier = description.at("identifier").as_string().value();
-		auto& materials = description.at("materials").as_object().value();
-
-		std::unordered_map<std::string, Handle<Material>> render_materials;
-
-		for (auto& [name, material_name] : materials) {
-			render_materials.emplace(std::move(name), materialManager->getMaterial(material_name.as_string().value()));
-		}
+//		auto bytes = resourceManager->loadFile("entity/agent.entity.json").value();
+//		auto entity_obj = json::Parser{bytes}.parse().value().as_object().value();
+//		auto& client_entity = entity_obj.at("minecraft:client_entity").as_object().value();
+//		auto& description = client_entity.at("description").as_object().value();
+//		auto& identifier = description.at("identifier").as_string().value();
+//		auto& materials = description.at("materials").as_object().value();
+//
+//		std::unordered_map<std::string, Handle<Material>> render_materials;
+//
+//		for (auto& [name, material_name] : materials) {
+//			render_materials.emplace(std::move(name), materialManager->getMaterial(material_name.as_string().value()));
+//		}
 	}
 
 	void loadModels() {
-		auto mobs = json::Parser{resourceManager->loadFile("models/mobs.json").value()}.parse().value().as_object().value();
-		auto& geometry = mobs.at("geometry.agent");
+		auto mobs = Json::parse(resourceManager->loadFile("models/mobs.json").value());
+		auto& geometry = mobs["geometry.agent"];
 
-		int texture_width = geometry.get("texturewidth")->as_i64().value();
-		int texture_height = geometry.get("textureheight")->as_i64().value();
-
-		ParsedModelGeometry parsedGeometry;
-
-		if (auto bones = geometry.get("bones")) {
-			for (auto& bone : bones->as_array().value()) {
-				ParsedGeometryBoneNode node;
-
-				if (auto cubes = bone.get("cubes")) {
-					ParsedGeometryBoneElement element;
-
-					for (auto& cube : cubes->as_array().value()) {
-						auto& origin = cube.get("origin").value().as_array().value();
-						auto& size = cube.get("size").value().as_array().value();
-						auto& uv = cube.get("uv").value().as_array().value();
-
-						element.origin.x = origin[0].as_f64().value();
-						element.origin.y = origin[1].as_f64().value();
-						element.origin.z = origin[2].as_f64().value();
-
-						element.size.x = size[0].as_f64().value();
-						element.size.y = size[1].as_f64().value();
-						element.size.z = size[2].as_f64().value();
-
-						element.uv = Vector2 {
-							(float) uv[0].as_f64().value(),
-							(float) uv[1].as_f64().value()
-						};
-
-						node.cubes.emplace_back(std::move(element));
-
-//								if (!neverRender) {
-//							const float posX = origin[0].as_f64().value() / 16.0f;
-//							const float posY = origin[1].as_f64().value() / 16.0f;
-//							const float posZ = origin[2].as_f64().value() / 16.0f;
+		ModelFormat model_format;
+		model_format.visible_bounds_width = geometry["visible_bounds_width"].get<int>();
+		model_format.visible_bounds_height = geometry["visible_bounds_height"].get<int>();
+		model_format.texture_width = geometry.value<int>("texturewidth", 64);
+		model_format.texture_height = geometry.value<int>("textureheight", 64);
 //
-//							const float sizeX = size[0].as_f64().value();
-//							const float sizeY = size[1].as_f64().value();
-//							const float sizeZ = size[2].as_f64().value();
-//
-//							const float x0 = posX;
-//							const float y0 = posY;
-//							const float z0 = posZ;
-//
-//							const float x1 = posX + sizeX / 16.0f;
-//							const float y1 = posY + sizeY / 16.0f;
-//							const float z1 = posZ + sizeZ / 16.0f;
-//
-//							const float u = uv[0].as_f64().value();
-//							const float v = uv[1].as_f64().value();
-//
-//							const float u0 = (u) / texture_width;
-//							const float u1 = (u + sizeZ) / texture_width;
-//							const float u2 = (u + sizeZ + sizeX) / texture_width;
-//							const float u3 = (u + sizeZ + sizeX + sizeX) / texture_width;
-//							const float u4 = (u + sizeZ + sizeX + sizeZ) / texture_width;
-//							const float u5 = (u + sizeZ + sizeX + sizeZ + sizeX) / texture_width;
-//
-//							const float v0 = (v) / texture_height;
-//							const float v1 = (v + sizeZ) / texture_height;
-//							const float v2 = (v + sizeZ + sizeY) / texture_height;
-//
-//							TexturedQuad quad0 {
-//								.vertices{
-//									PositionTextureVertex{x0, y0, z0, u1, v2},
-//									PositionTextureVertex{x0, y1, z0, u1, v1},
-//									PositionTextureVertex{x1, y1, z0, u2, v1},
-//									PositionTextureVertex{x1, y0, z0, u2, v2}
-//								},
-//								.normal{0, 0, -1.0f}
-//							};
-//							TexturedQuad quad1 {
-//								.vertices{
-//									PositionTextureVertex{x1, y0, z0, u1, v2},
-//									PositionTextureVertex{x1, y1, z0, u1, v1},
-//									PositionTextureVertex{x1, y1, z1, u0, v1},
-//									PositionTextureVertex{x1, y0, z1, u0, v2}
-//								},
-//								.normal{1.0f, 0, 0}
-//							};
-//							TexturedQuad quad2 {
-//								.vertices{
-//									PositionTextureVertex{x1, y0, z1, u4, v2},
-//									PositionTextureVertex{x1, y1, z1, u4, v1},
-//									PositionTextureVertex{x0, y1, z1, u5, v1},
-//									PositionTextureVertex{x0, y0, z1, u5, v2}
-//								},
-//								.normal{0, 0, 1.0f}
-//							};
-//							TexturedQuad quad3 {
-//								.vertices{
-//									PositionTextureVertex{x0, y0, z1, u0, v2},
-//									PositionTextureVertex{x0, y1, z1, u0, v1},
-//									PositionTextureVertex{x0, y1, z0, u1, v1},
-//									PositionTextureVertex{x0, y0, z0, u1, v2}
-//								},
-//								.normal{-1.0f, 0, 0}
-//							};
-//							TexturedQuad quad4 {
-//								.vertices{
-//									PositionTextureVertex{x0, y1, z0, u1, v1},
-//									PositionTextureVertex{x0, y1, z1, u1, v0},
-//									PositionTextureVertex{x1, y1, z1, u2, v0},
-//									PositionTextureVertex{x1, y1, z0, u2, v1}
-//								},
-//								.normal{0, 1.0f, 0}
-//							};
-//							TexturedQuad quad5 {
-//								.vertices{
-//									PositionTextureVertex{x0, y0, z1, u2, v1},
-//									PositionTextureVertex{x0, y0, z0, u2, v0},
-//									PositionTextureVertex{x1, y0, z0, u3, v0},
-//									PositionTextureVertex{x1, y0, z1, u3, v1}
-//								},
-//								.normal{0, -1.0f, 0}
-//							};
-//
-//							ModelBox modelBox{
-//								.quads {
-//									quad0,
-//									quad1,
-//									quad2,
-//									quad3,
-//									quad4,
-//									quad5
-//								}
-//							};
-//
-//							renderer->cubes.push_back(modelBox);
-//								}
-					}
-				}
+		auto material = materialManager->getMaterial("agent");
+		material->SetTexture(textureManager->getTexture("textures/entity/agent"));
 
-				parsedGeometry.bones.emplace_back(std::move(node));
+		for (auto& bone : geometry["bones"]) {
+			auto& bone_format = model_format.bones.emplace_back();
+
+			bone_format.neverRender = bone.value<bool>("neverRender", false);
+			bone_format.mirror = bone.value<bool>("mirror", false);
+			bone_format.reset = bone.value<bool>("reset", false);
+
+			for (auto& cube : bone["cubes"]) {
+				auto& cube_format = bone_format.cubes.emplace_back();
+
+				cube_format.origin = cube.at("origin").get<Vector3>();
+				cube_format.size = cube.at("size").get<Vector3>();
+				cube_format.uv = cube.at("uv").get<Vector2>();
 			}
 		}
+
+		agentRenderer = std::make_unique<EntityRenderer>(material, model_format);
 	}
 
 	void loadBlocks() {
@@ -347,7 +191,7 @@ struct GameClient {
 		auto cmd = renderContext->begin();
 		cmd.setViewport(0, 1, &viewport);
 		cmd.setScissor(0, 1, &scissor);
-//		agentRenderer->render(cmd, transform);
+		agentRenderer->render(cmd, transform);
 		gui->draw(cmd);
 		renderContext->end();
 	}
@@ -456,7 +300,11 @@ private:
 	bool _running{true};
 };
 
+extern "C" int add(int a, int b);
+
 int main(int, char**) {
+//	std::cout << add(1, 2) << std::endl;
+
 	GameWindow window("Vulkan", 1280, 720);
 	window.setMouseButtonCallback(&Mouse::handleMouseButton);
 	window.setMousePositionCallback(&Mouse::handleMousePosition);

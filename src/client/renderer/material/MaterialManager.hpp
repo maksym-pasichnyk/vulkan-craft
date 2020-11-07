@@ -2,12 +2,13 @@
 
 #include "client/AppPlatform.hpp"
 #include "client/renderer/RenderContext.hpp"
-
-#include "client/util/Json.hpp"
+#include "client/util/Handle.hpp"
 
 #include "Material.hpp"
 
-#include "client/util/Handle.hpp"
+#include "nlohmann/json.hpp"
+
+using Json = nlohmann::json;
 
 struct MaterialManager {
 	MaterialManager() {}
@@ -21,10 +22,10 @@ struct MaterialManager {
 			}
 		})";
 
-		auto obj = json::Parser{bytes}.parse()->as_object().value();
-		for (auto& [name, value] : obj) {
-			auto vertexShader = createShader(platform, value.get("vertexShader").value().as_string().value());
-			auto fragmentShader = createShader(platform, value.get("fragmentShader").value().as_string().value());
+		auto obj = Json::parse(bytes);
+		for (auto& [name, value] : obj.items()) {
+			auto vertexShader = createShader(platform, value.at("vertexShader").get<std::string>());
+			auto fragmentShader = createShader(platform, value.at("fragmentShader").get<std::string>());
 
 			vk::PipelineShaderStageCreateInfo stages[] {
 					{.stage = vk::ShaderStageFlagBits::eVertex, .module = vertexShader, .pName = "main"},

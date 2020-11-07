@@ -6,13 +6,13 @@
 #include "util/math/vec2.hpp"
 #include "util/math/vec3.hpp"
 
-struct ParsedGeometryBoneElementUV {
+struct ModelFaceFormat {
 	Vector2 uv;
 };
 
-struct ParsedGeometryBoneElement {
+struct ModelCubeFormat {
 	Vector3 origin;
 	Vector3 size;
 
-	std::variant<Vector2, std::unordered_map<std::string, ParsedGeometryBoneElementUV>> uv;
+	std::variant<Vector2, std::unordered_map<std::string, ModelFaceFormat>> uv;
 };

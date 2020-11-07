@@ -3,11 +3,11 @@
 #include <string>
 #include <optional>
 
-#include "ParsedGeometryBoneNode.hpp"
+#include "ModelBoneFormat.hpp"
 
 #include "util/math/vec3.hpp"
 
-struct ParsedModelGeometry {
+struct ModelFormat {
 	std::string name;
 	std::optional<std::string> parent;
 
@@ -15,8 +15,8 @@ struct ParsedModelGeometry {
 	int visible_bounds_height;
 	Vector3 visible_bounds_offset;
 
-	std::optional<int> texture_width;
-	std::optional<int> texture_height;
+	int texture_width;
+	int texture_height;
 
-	std::vector<ParsedGeometryBoneNode> bones;
+	std::vector<ModelBoneFormat> bones;
 };

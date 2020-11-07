@@ -12,6 +12,10 @@
 
 #include "client/util/Handle.hpp"
 
+#include "nlohmann/json.hpp"
+
+using Json = nlohmann::json;
+
 struct TextureAtlasSprite {
 	struct Info {
 		std::string path;
@@ -225,8 +229,9 @@ struct ParsedAtlasNodeElement {
 };
 
 struct ParsedAtlasNode {
-	std::string name;
+	ParsedAtlasNode(std::string name) : name(std::move(name)) {}
 
+	std::string name;
 	int quad;
 	std::vector<ParsedAtlasNodeElement> elements;
 };
@@ -241,57 +246,48 @@ struct TextureAtlas : Texture {
 
 	std::map<std::string, TextureAtlasTextureItem> items;
 
-	void _readElement(json::Value& value, ParsedAtlasNodeElement& element) {
-		if (auto path = value.as_string()) {
-			element.path = *path;
+	void _readElement(Json& data, ParsedAtlasNodeElement& element) {
+		if (data.is_string()) {
+			element.path = data.get<std::string>();
 		} else {
-			element.path = value.get("path").value().as_string().value();
+			element.path = data.at("path").get<std::string>();
 //			if (auto overlay_color = value.get("overlay_color")) {
 //				element.overlay_color = overlay_color->as_string();
 //			}
 //			if (auto tint_color = value.get("tint_color")) {
-//				element.tint_color = tint_color->as_string().value();
+//				element.tint_color = tint_color->get<std::string>();
 //			}
 		}
 	}
 
-	void _readNode(json::Value& value, ParsedAtlasNode& node) {
-		if (auto quad = value.get("quad")) {
-			node.quad = quad->as_i64().value();
-		}
+	void _readNode(Json& data, ParsedAtlasNode& node) {
+		node.quad = data.value<int>("quad", 0);
 
-		auto textures = value.get("textures").value();
-		if (auto list = textures.as_array()) {
-			ParsedAtlasNodeElement element;
-			for (auto& item : list.value()) {
-				_readElement(item, element);
+		auto textures = data.at("textures");
+		if (textures.is_array()) {
+			for (auto& texture : textures) {
+				_readElement(texture, node.elements.emplace_back());
 			}
-			node.elements.emplace_back(element);
 		} else {
-			ParsedAtlasNodeElement element;
-			_readElement(textures, element);
-			node.elements.emplace_back(element);
+			_readElement(textures, node.elements.emplace_back());
 		}
 	}
 
-	void _loadAtlasNodes(json::Object& texture_data, std::vector<ParsedAtlasNode>& nodes) {
-		for (auto&& [name, data] : texture_data) {
-			ParsedAtlasNode node{ .name = name };
-			_readNode(data, node);
-			nodes.emplace_back(std::move(node));
+	void _loadAtlasNodes(Json& texture_data, std::vector<ParsedAtlasNode>& nodes) {
+		for (auto& item : texture_data.items()) {
+			_readNode(item.value(), nodes.emplace_back(item.key()));
 		}
 	}
 
 	void loadMetaFile(Handle<ResourceManager> resourceManager) {
-		auto bytes = resourceManager->loadFile("textures/terrain_texture.json");
-		auto object = json::Parser{bytes.value()}.parse().value().as_object().value();
+		auto object = Json::parse(resourceManager->loadFile("textures/terrain_texture.json").value());
 
-		auto resource_pack_name = object.at("resource_pack_name").as_string().value();
-		texture_name = object.at("texture_name").as_string().value();
-		padding = object.at("padding").as_i64().value();
-		num_mip_levels = object.at("num_mip_levels").as_i64().value();
+		auto resource_pack_name = object.at("resource_pack_name").get<std::string>();
+		texture_name = object.at("texture_name").get<std::string>();
+		padding = object.at("padding").get<int>();
+		num_mip_levels = object.at("num_mip_levels").get<int>();
 
-		auto texture_data = object.at("texture_data").as_object().value();
+		auto& texture_data = object.at("texture_data");
 
 		std::vector<ParsedAtlasNode> nodes;
 		_loadAtlasNodes(texture_data, nodes);
@@ -315,7 +311,8 @@ struct TextureAtlas : Texture {
 		}
 
 		for (auto &node : nodes) {
-			TextureAtlasTextureItem item;
+			auto& item = items[node.name];
+
 			item.textures.reserve(node.elements.size());
 
 			for (auto &element : node.elements) {
@@ -328,22 +325,12 @@ struct TextureAtlas : Texture {
 						sprite.info.height()
 				};
 
-				auto minU = float(rect.x) / float(sheet->width);
-				auto minV = float(rect.y) / float(sheet->height);
-				auto maxU = float(rect.x + rect.width) / float(sheet->width);
-				auto maxV = float(rect.y + rect.height) / float(sheet->height);
-
-				TextureUVCoordinateSet textureUvCoordinateSet{
-						.minU = minU,
-						.minV = minV,
-						.maxU = maxU,
-						.maxV = maxV
-				};
-
-				item.textures.emplace_back(textureUvCoordinateSet);
+				auto& textureUvCoordinateSet = item.textures.emplace_back();
+				textureUvCoordinateSet.minU = float(rect.x) / float(sheet->width);
+				textureUvCoordinateSet.minV = float(rect.y) / float(sheet->height);
+				textureUvCoordinateSet.maxU = float(rect.x + rect.width) / float(sheet->width);
+				textureUvCoordinateSet.maxV = float(rect.y + rect.height) / float(sheet->height);
 			}
-
-			items.try_emplace(node.name, std::move(item));
 		}
 	}
 

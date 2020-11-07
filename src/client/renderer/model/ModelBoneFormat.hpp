@@ -3,11 +3,11 @@
 #include <vector>
 #include <optional>
 
-#include "ParsedGeometryBoneElement.hpp"
+#include "ModelCubeFormat.hpp"
 
 #include "util/math/vec3.hpp"
 
-struct ParsedGeometryBoneNode {
+struct ModelBoneFormat {
 	std::string name;
 	std::optional<std::string> parent;
 
@@ -17,6 +17,7 @@ struct ParsedGeometryBoneNode {
 
 	bool neverRender = false;
 	bool mirror = false;
+	bool reset = false;
 
-	std::vector<ParsedGeometryBoneElement> cubes;
+	std::vector<ModelCubeFormat> cubes;
 };
