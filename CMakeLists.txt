@@ -9,6 +9,8 @@ include_directories(.)
 include_directories(src)
 include_directories(lib)
 include_directories(lib/fmt/include)
+include_directories(lib/json/include)
+include_directories(lib/v8/include)
 
 function(add_shaders TARGET)
     set(SPIRV_BINARY_FILES)
@@ -26,6 +28,8 @@ function(add_shaders TARGET)
     add_custom_target(${TARGET} DEPENDS ${SPIRV_BINARY_FILES})
 endfunction()
 
+
+
 add_shaders(shaders
     assets/shaders/entity.frag
     assets/shaders/entity.vert
@@ -35,7 +39,6 @@ add_library(imgui STATIC
     lib/imgui/imconfig.h
     lib/imgui/imgui.h
     lib/imgui/imgui.cpp
-    lib/imgui/imgui_demo.cpp
     lib/imgui/imgui_draw.cpp
     lib/imgui/imgui_internal.h
     lib/imgui/imgui_widgets.cpp
@@ -80,9 +83,9 @@ add_executable(vcraft
     src/client/renderer/TextureUVCoordinateSet.hpp
     src/world/tile/Tile.hpp
         src/client/renderer/entity/EntityRenderer.hpp
-        src/client/renderer/model/ParsedModelGeometry.hpp
-        src/client/renderer/model/ParsedGeometryBoneNode.hpp
-        src/client/renderer/model/ParsedGeometryBoneElement.hpp
+        src/client/renderer/model/ModelFormat.hpp
+        src/client/renderer/model/ModelBoneFormat.hpp
+        src/client/renderer/model/ModelCubeFormat.hpp
     src/client/renderer/PositionTextureVertex.hpp
     src/client/renderer/TexturedQuad.hpp
     src/client/renderer/model/ModelBox.hpp
