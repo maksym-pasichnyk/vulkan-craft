@@ -9,7 +9,7 @@
 
 struct ModelFormat {
 	std::string name;
-	std::optional<std::string> parent;
+	std::string parent;
 
 	int visible_bounds_width;
 	int visible_bounds_height;
@@ -18,5 +18,5 @@ struct ModelFormat {
 	int texture_width;
 	int texture_height;
 
-	std::vector<ModelBoneFormat> bones;
+	std::map<std::string, std::unique_ptr<ModelBoneFormat>> bones;
 };

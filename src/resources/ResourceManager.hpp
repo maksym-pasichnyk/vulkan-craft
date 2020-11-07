@@ -23,6 +23,18 @@ struct ResourceManager {
 		return std::nullopt;
 	}
 
+	std::vector<std::string> getResources(const std::filesystem::path& path) {
+		std::vector<std::string> all_resources;
+
+		for (auto& resourcePack : resourcePacks) {
+			auto resources = resourcePack->getResources(path);
+
+			all_resources.insert(all_resources.end(), resources.begin(), resources.end());
+		}
+
+		return std::move(all_resources);
+	}
+
 	std::optional<NativeImage> loadTextureData(const std::string& name) {
 		for (auto ext : {".png", ".tga"}) {
 			if (auto bytes = loadFile(name + ext)) {

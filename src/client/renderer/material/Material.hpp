@@ -91,8 +91,8 @@ struct Material {
 
 		vk::PipelineRasterizationStateCreateInfo rasterizationState{
 				.polygonMode = vk::PolygonMode::eFill,
-				.cullMode = vk::CullModeFlagBits::eNone,
-				.frontFace = vk::FrontFace::eCounterClockwise,
+				.cullMode = vk::CullModeFlagBits::eBack,
+				.frontFace = vk::FrontFace::eClockwise,
 				.lineWidth = 1.0f
 		};
 

@@ -27,6 +27,25 @@ struct ResourcePack {
 		return std::nullopt;
 	}
 
+	auto getResources(const std::filesystem::path& path) -> std::vector<std::string> {
+		std::vector<std::string> resources;
+
+		for (auto& entry : std::filesystem::recursive_directory_iterator(getFullPath(path))) {
+			if (entry.is_directory()) continue;
+
+			std::string bytes;
+			bytes.resize(std::filesystem::file_size(entry.path()));
+
+			std::ifstream file(entry.path(), std::ios::binary);
+			file.read(bytes.data(), bytes.size());
+			file.close();
+
+			resources.emplace_back(bytes);
+		}
+
+		return std::move(resources);
+	}
+
 private:
 	std::filesystem::path basePath;
 };

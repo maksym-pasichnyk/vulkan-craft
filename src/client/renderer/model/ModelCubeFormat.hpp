@@ -12,7 +12,11 @@ struct ModelFaceFormat {
 
 struct ModelCubeFormat {
 	Vector3 origin;
+	Vector3 rotation;
 	Vector3 size;
 
-	std::variant<Vector2, std::unordered_map<std::string, ModelFaceFormat>> uv;
+	bool uv_box = true;
+
+	Vector2 uv;
+	std::unordered_map<std::string, ModelFaceFormat> faces;
 };

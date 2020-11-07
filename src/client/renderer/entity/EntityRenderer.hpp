@@ -12,135 +12,250 @@
 struct EntityRenderer {
 	Handle<Material> material;
 
-	EntityRenderer(Handle<Material> material, const ModelFormat& model_format) : material(material) {
-		auto texture_width = model_format.texture_width;
-		auto texture_height = model_format.texture_height;
+	EntityRenderer(Handle<Material> material, Handle<ModelFormat> model_format) : material(material) {
+		auto texture_width = model_format->texture_width;
+		auto texture_height = model_format->texture_height;
 
-		VertexBuilder vertexBuilder;
-		for (auto& bone : model_format.bones) {
-			if (bone.neverRender) continue;
+		VertexBuilder builder;
+		for (auto& [name, bone] : model_format->bones) {
+			if (bone->neverRender) continue;
 
-			for (auto& cube : bone.cubes) {
-				const float posX = cube.origin.x;
-				const float posY = cube.origin.y;
-				const float posZ = cube.origin.z;
+			auto origin = bone->pivot;
 
-				const float sizeX = cube.size.x;
-				const float sizeY = cube.size.y;
-				const float sizeZ = cube.size.z;
+			for (auto& cube : bone->cubes) {
+				auto& faces = cube.faces;
+				auto& from = cube.origin;
+				auto& size = cube.size;
+				auto& uv = cube.uv;
 
-				const auto [u, v] = std::get<Vector2>(cube.uv);
+				auto x0 = from.x / 16.0f;
+				auto y0 = from.y / 16.0f;
+				auto z0 = from.z / 16.0f;
 
-				const float x0 = posX / 16.0f;
-				const float y0 = posY / 16.0f;
-				const float z0 = posZ / 16.0f;
+				auto x1 = x0 + size.x / 16.0f;
+				auto y1 = y0 + size.y / 16.0f;
+				auto z1 = z0 + size.z / 16.0f;
 
-				const float x1 = (posX + sizeX) / 16.0f;
-				const float y1 = (posY + sizeY) / 16.0f;
-				const float z1 = (posZ + sizeZ) / 16.0f;
+				if (cube.uv_box) {
+					auto u = uv.x;
+					auto v = uv.y;
 
-				const float u0 = (u) / texture_width;
-				const float u1 = (u + sizeZ) / texture_width;
-				const float u2 = (u + sizeZ + sizeX) / texture_width;
-				const float u3 = (u + sizeZ + sizeX + sizeX) / texture_width;
-				const float u4 = (u + sizeZ + sizeX + sizeZ) / texture_width;
-				const float u5 = (u + sizeZ + sizeX + sizeZ + sizeX) / texture_width;
+					auto u0 = (u) / texture_width;
+					auto u1 = (u + size.z) / texture_width;
+					auto u2 = (u + size.z + size.x) / texture_width;
+					auto u3 = (u + size.z + size.x + size.x) / texture_width;
+					auto u4 = (u + size.z + size.x + size.z) / texture_width;
+					auto u5 = (u + size.z + size.x + size.z + size.x) / texture_width;
 
-				const float v0 = (v) / texture_height;
-				const float v1 = (v + sizeZ) / texture_height;
-				const float v2 = (v + sizeZ + sizeY) / texture_height;
+					auto v0 = (v) / texture_height;
+					auto v1 = (v + size.z) / texture_height;
+					auto v2 = (v + size.z + size.y) / texture_height;
 
-				TexturedQuad quad0{
-					.vertices{
-						PositionTextureVertex{x0, y0, z0, u1, v2},
-						PositionTextureVertex{x0, y1, z0, u1, v1},
-						PositionTextureVertex{x1, y1, z0, u2, v1},
-						PositionTextureVertex{x1, y0, z0, u2, v2}
-					},
-					.normal{0, 0, -1.0f}
-				};
-				TexturedQuad quad1{
-					.vertices{
-						PositionTextureVertex{x1, y0, z0, u1, v2},
-						PositionTextureVertex{x1, y1, z0, u1, v1},
-						PositionTextureVertex{x1, y1, z1, u0, v1},
-						PositionTextureVertex{x1, y0, z1, u0, v2}
-					},
-					.normal{1.0f, 0, 0}
-				};
-				TexturedQuad quad2{
-					.vertices{
-						PositionTextureVertex{x1, y0, z1, u4, v2},
-						PositionTextureVertex{x1, y1, z1, u4, v1},
-						PositionTextureVertex{x0, y1, z1, u5, v1},
-						PositionTextureVertex{x0, y0, z1, u5, v2}
-					},
-					.normal{0, 0, 1.0f}
-				};
-				TexturedQuad quad3{
-					.vertices{
-						PositionTextureVertex{x0, y0, z1, u0, v2},
-						PositionTextureVertex{x0, y1, z1, u0, v1},
-						PositionTextureVertex{x0, y1, z0, u1, v1},
-						PositionTextureVertex{x0, y0, z0, u1, v2}
-					},
-					.normal{-1.0f, 0, 0}
-				};
-				TexturedQuad quad4{
-					.vertices{
-						PositionTextureVertex{x0, y1, z0, u1, v1},
-						PositionTextureVertex{x0, y1, z1, u1, v0},
-						PositionTextureVertex{x1, y1, z1, u2, v0},
-						PositionTextureVertex{x1, y1, z0, u2, v1}
-					},
-					.normal{0, 1.0f, 0}
-				};
-				TexturedQuad quad5{
-					.vertices{
-						PositionTextureVertex{x0, y0, z1, u2, v1},
-						PositionTextureVertex{x0, y0, z0, u2, v0},
-						PositionTextureVertex{x1, y0, z0, u3, v0},
-						PositionTextureVertex{x1, y0, z1, u3, v1}
-					},
-					.normal{0, -1.0f, 0}
-				};
+					buildQuad(builder, TexturedQuad{
+						.vertices{
+							PositionTextureVertex{x0, y0, z0, u1, v2},
+							PositionTextureVertex{x0, y1, z0, u1, v1},
+							PositionTextureVertex{x1, y1, z0, u2, v1},
+							PositionTextureVertex{x1, y0, z0, u2, v2}
+						},
+						.normal{0, 0, -1.0f}
+					});
 
-//				ModelBox modelBox{
-//					.quads {
-//						quad0,
-//						quad1,
-//						quad2,
-//						quad3,
-//						quad4,
-//						quad5
-//					}
-//				};
+					buildQuad(builder, TexturedQuad{
+						.vertices{
+							PositionTextureVertex{x1, y0, z0, u1, v2},
+							PositionTextureVertex{x1, y1, z0, u1, v1},
+							PositionTextureVertex{x1, y1, z1, u0, v1},
+							PositionTextureVertex{x1, y0, z1, u0, v2}
+						},
+						.normal{1.0f, 0, 0}
+					});
 
-				std::array quads {
-					quad0,
-					quad1,
-					quad2,
-					quad3,
-					quad4,
-					quad5
-				};
+					buildQuad(builder, TexturedQuad{
+						.vertices{
+							PositionTextureVertex{x1, y0, z1, u4, v2},
+							PositionTextureVertex{x1, y1, z1, u4, v1},
+							PositionTextureVertex{x0, y1, z1, u5, v1},
+							PositionTextureVertex{x0, y0, z1, u5, v2}
+						},
+						.normal{0, 0, 1.0f}
+					});
 
-				for (auto& quad : quads) {
-					auto normal = quad.normal;
+					buildQuad(builder, TexturedQuad{
+						.vertices{
+							PositionTextureVertex{x0, y0, z1, u0, v2},
+							PositionTextureVertex{x0, y1, z1, u0, v1},
+							PositionTextureVertex{x0, y1, z0, u1, v1},
+							PositionTextureVertex{x0, y0, z0, u1, v2}
+						},
+						.normal{-1.0f, 0, 0}
+					});
 
-					vertexBuilder.addQuad(0, 1, 2, 0, 2, 3);
-					for (auto &&vertex : quad.vertices) {
-						vertexBuilder.vertices.emplace_back(vertex.x, vertex.y, vertex.z, vertex.u, vertex.v, normal.x, normal.y, normal.z);
+					buildQuad(builder, TexturedQuad{
+						.vertices{
+							PositionTextureVertex{x0, y1, z0, u1, v1},
+							PositionTextureVertex{x0, y1, z1, u1, v0},
+							PositionTextureVertex{x1, y1, z1, u2, v0},
+							PositionTextureVertex{x1, y1, z0, u2, v1}
+						},
+						.normal{0, 1.0f, 0}
+					});
+
+					buildQuad(builder, TexturedQuad{
+						.vertices{
+							PositionTextureVertex{x0, y0, z1, u2, v0},
+							PositionTextureVertex{x0, y0, z0, u2, v1},
+							PositionTextureVertex{x1, y0, z0, u3, v1},
+							PositionTextureVertex{x1, y0, z1, u3, v0}
+						},
+						.normal{0, -1.0f, 0}
+					});
+				} else {
+					if (auto face = cube.faces.find("south"); face != cube.faces.end()) {
+						auto uv = face->second.uv;
+						auto u = uv.x;
+						auto v = uv.y;
+
+						buildFace(builder,
+							{x0, y0, z0},
+							{x0, y1, z0},
+							{x1, y1, z0},
+							{x1, y0, z0},
+							u / float(texture_width),
+							v / float(texture_width),
+							(u + size.x) / float(texture_width),
+							(v + size.y) / float(texture_width),
+							{0, 0, -1.0f}
+						);
+					}
+
+					if (auto face = cube.faces.find("east"); face != cube.faces.end()) {
+						auto uv = face->second.uv;
+						auto u = uv.x;
+						auto v = uv.y;
+
+						buildFace(builder,
+								{x1, y0, z0},
+								{x1, y1, z0},
+								{x1, y1, z1},
+								{x1, y0, z1},
+								u / float(texture_width),
+								v / float(texture_width),
+								(u + size.z) / float(texture_width),
+								(v + size.y) / float(texture_width),
+								{1.0f, 0, 0}
+						);
+					}
+
+					if (auto face = cube.faces.find("north"); face != cube.faces.end()) {
+						auto uv = face->second.uv;
+						auto u = uv.x;
+						auto v = uv.y;
+
+						buildFace(builder,
+								{x1, y0, z1},
+								{x1, y1, z1},
+								{x0, y1, z1},
+								{x0, y0, z1},
+								u / float(texture_width),
+								v / float(texture_width),
+								(u + size.x) / float(texture_width),
+								(v + size.y) / float(texture_width),
+								{0, 0, 1.0f}
+						);
+					}
+
+					if (auto face = cube.faces.find("west"); face != cube.faces.end()) {
+						auto uv = face->second.uv;
+						auto u = uv.x;
+						auto v = uv.y;
+
+						buildFace(builder,
+								{x0, y0, z1},
+								{x0, y1, z1},
+								{x0, y1, z0},
+								{x0, y0, z0},
+								u / float(texture_width),
+								v / float(texture_width),
+								(u + size.z) / float(texture_width),
+								(v + size.y) / float(texture_width),
+								{-1.0f, 0, 0}
+						);
+					}
+
+					if (auto face = cube.faces.find("up"); face != cube.faces.end()) {
+						auto uv = face->second.uv;
+						auto u = uv.x;
+						auto v = uv.y;
+
+						buildFace(builder,
+								{x0, y1, z0},
+								{x0, y1, z1},
+								{x1, y1, z1},
+								{x1, y1, z0},
+								u / float(texture_width),
+								v / float(texture_width),
+								(u + size.x) / float(texture_width),
+								(v + size.z) / float(texture_width),
+								{0, 1.0f, 0}
+						);
+					}
+
+					if (auto face = cube.faces.find("down"); face != cube.faces.end()) {
+						auto uv = face->second.uv;
+						auto u = uv.x;
+						auto v = uv.y;
+
+						buildFace(builder,
+								{x0, y0, z1},
+								{x0, y0, z0},
+								{x1, y0, z0},
+								{x1, y0, z1},
+								u / float(texture_width),
+								v / float(texture_width),
+								(u + size.x) / float(texture_width),
+								(v + size.z) / float(texture_width),
+								{0, -1.0f, 0}
+						);
 					}
 				}
 			}
 		}
 
-		renderBuffer.SetIndexBufferCount(vertexBuilder.indices.size(), sizeof(int));
-		renderBuffer.SetVertexBufferCount(vertexBuilder.vertices.size(), sizeof(Vertex));
+		renderBuffer.SetIndexBufferCount(builder.indices.size(), sizeof(int));
+		renderBuffer.SetVertexBufferCount(builder.vertices.size(), sizeof(Vertex));
 
-		renderBuffer.SetIndexBufferData(vertexBuilder.indices.data(), 0, 0, sizeof(int) * vertexBuilder.indices.size());
-		renderBuffer.SetVertexBufferData(vertexBuilder.vertices.data(), 0, 0, sizeof(Vertex) * vertexBuilder.vertices.size());
+		renderBuffer.SetIndexBufferData(builder.indices.data(), 0, 0, sizeof(int) * builder.indices.size());
+		renderBuffer.SetVertexBufferData(builder.vertices.data(), 0, 0, sizeof(Vertex) * builder.vertices.size());
+	}
+
+	void buildFace(
+		VertexBuilder& builder,
+		const Vector3& p1,
+		const Vector3& p2,
+		const Vector3& p3,
+		const Vector3& p4,
+		float u0,
+		float v0,
+		float u1,
+		float v1,
+		const Vector3& normal
+	) {
+		builder.addQuad(0, 1, 2, 0, 2, 3);
+
+		builder.vertices.emplace_back(p1.x, p1.y, p1.z, u0, v0, normal.x, normal.y, normal.z);
+		builder.vertices.emplace_back(p2.x, p2.y, p2.z, u0, v1, normal.x, normal.y, normal.z);
+		builder.vertices.emplace_back(p3.x, p3.y, p3.z, u1, v1, normal.x, normal.y, normal.z);
+		builder.vertices.emplace_back(p4.x, p4.y, p4.z, u1, v0, normal.x, normal.y, normal.z);
+	}
+
+	void buildQuad(VertexBuilder& builder, const TexturedQuad& quad) {
+		auto normal = quad.normal;
+
+		builder.addQuad(0, 1, 2, 0, 2, 3);
+		for (auto &&vertex : quad.vertices) {
+			builder.vertices.emplace_back(vertex.x, vertex.y, vertex.z, vertex.u, vertex.v, normal.x, normal.y, normal.z);
+		}
 	}
 
 	~EntityRenderer() {

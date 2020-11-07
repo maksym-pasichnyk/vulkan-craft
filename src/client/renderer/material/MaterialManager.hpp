@@ -15,7 +15,7 @@ struct MaterialManager {
 
 	void loadMetaFile(Handle<AppPlatform> platform, Handle<RenderContext> renderContext) {
 		std::string_view bytes = R"({
-			"agent": {
+			"entity_client": {
 				"fragmentShader": "shaders/entity.frag.spv",
 				"vertexShader": "shaders/entity.vert.spv",
 				"depthFunc": 0

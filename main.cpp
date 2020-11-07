@@ -114,36 +114,129 @@ struct GameClient {
 //		}
 	}
 
-	void loadModels() {
-		auto mobs = Json::parse(resourceManager->loadFile("models/mobs.json").value());
-		auto& geometry = mobs["geometry.agent"];
+	std::map<std::string, std::unique_ptr<ModelFormat>> models;
 
-		ModelFormat model_format;
-		model_format.visible_bounds_width = geometry["visible_bounds_width"].get<int>();
-		model_format.visible_bounds_height = geometry["visible_bounds_height"].get<int>();
-		model_format.texture_width = geometry.value<int>("texturewidth", 64);
-		model_format.texture_height = geometry.value<int>("textureheight", 64);
-//
-		auto material = materialManager->getMaterial("agent");
-		material->SetTexture(textureManager->getTexture("textures/entity/agent"));
+	void parseModels(const Json& geometries) {
+		using namespace std::string_view_literals;
 
-		for (auto& bone : geometry["bones"]) {
-			auto& bone_format = model_format.bones.emplace_back();
+		auto format_version = geometries.at("format_version").get<std::string>();
 
-			bone_format.neverRender = bone.value<bool>("neverRender", false);
-			bone_format.mirror = bone.value<bool>("mirror", false);
-			bone_format.reset = bone.value<bool>("reset", false);
+		if (format_version == "1.8.0"sv || format_version == "1.10.0"sv) {
+			for (auto& [name, geometry] : geometries.items()) {
+				if (!name.starts_with("geometry.")) continue;
 
-			for (auto& cube : bone["cubes"]) {
-				auto& cube_format = bone_format.cubes.emplace_back();
+				auto model_format = new ModelFormat();
 
-				cube_format.origin = cube.at("origin").get<Vector3>();
-				cube_format.size = cube.at("size").get<Vector3>();
-				cube_format.uv = cube.at("uv").get<Vector2>();
+				auto delim = name.find_first_of(':');
+				if (delim != std::string::npos) {
+					model_format->name = name.substr(0, delim);
+					model_format->parent = name.substr(delim + 1);
+				} else {
+					model_format->name = name.substr(0);
+				}
+
+				model_format->visible_bounds_width = geometry.value("visible_bounds_width", 0);
+				model_format->visible_bounds_height = geometry.value("visible_bounds_height", 0);
+				model_format->texture_width = geometry.value<int>("texturewidth", 64);
+				model_format->texture_height = geometry.value<int>("textureheight", 64);
+
+				auto bones = geometry.find("bones");
+				if (bones != geometry.end()) {
+					for (auto &bone : *bones) {
+						auto bone_format = new ModelBoneFormat();
+						bone_format->name = bone.at("name").get<std::string>();
+						bone_format->neverRender = bone.value<bool>("neverRender", false);
+						bone_format->mirror = bone.value<bool>("mirror", false);
+						bone_format->reset = bone.value<bool>("reset", false);
+						bone_format->pivot = bone.value("pivot", Vector3{});
+
+						auto cubes = bone.find("cubes");
+						if (cubes != bone.end()) {
+							bone_format->cubes.reserve(cubes->size());
+
+							for (auto &cube : *cubes) {
+								auto &cube_format = bone_format->cubes.emplace_back();
+
+								cube_format.origin = cube.at("origin").get<Vector3>();
+								cube_format.size = cube.at("size").get<Vector3>();
+								cube_format.uv = cube.value("uv", Vector2{});
+							}
+
+							model_format->bones.emplace(bone_format->name, bone_format);
+						}
+					}
+				}
+
+				models.emplace(model_format->name, model_format);
 			}
+		} else if (format_version == "1.12.0"sv || format_version == "1.16.0"sv) {
+			for (auto& geometry : geometries["minecraft:geometry"]) {
+				auto& description = geometry.at("description");
+
+				auto model_format = new ModelFormat();
+
+				model_format->name = description.at("identifier").get<std::string>();
+				model_format->visible_bounds_width = description.value("visible_bounds_width", 0);
+				model_format->visible_bounds_height = description.value("visible_bounds_height", 0);
+				model_format->texture_width = description.value<int>("texture_width", 64);
+				model_format->texture_height = description.value<int>("texture_height", 64);
+
+				if (auto bones = geometry.find("bones"); bones != geometry.end()) {
+					for (auto &bone : *bones) {
+						auto bone_format = new ModelBoneFormat();
+						bone_format->name = bone.at("name").get<std::string>();
+						bone_format->neverRender = bone.value<bool>("neverRender", false);
+						bone_format->mirror = bone.value<bool>("mirror", false);
+						bone_format->reset = bone.value<bool>("reset", false);
+						bone_format->pivot = bone.value("pivot", Vector3{});
+
+						if (auto cubes = bone.find("cubes"); cubes != bone.end()) {
+							bone_format->cubes.reserve(cubes->size());
+
+							for (auto &cube : *cubes) {
+								auto &cube_format = bone_format->cubes.emplace_back();
+
+								cube_format.origin = cube.at("origin").get<Vector3>();
+								cube_format.rotation = cube.value("rotation", Vector3{});
+								cube_format.size = cube.at("size").get<Vector3>();
+
+								if (auto uv = cube.find("uv"); uv != cube.end()) {
+									if (uv->is_array()) {
+										cube_format.uv = uv->get<Vector2>();
+									} else {
+										cube_format.uv_box = false;
+
+										for (auto& item : uv->items()) {
+											auto& face = cube_format.faces[item.key()];
+											face.uv = item.value().at("uv").get<Vector2>();
+										}
+									}
+								}
+							}
+
+							model_format->bones.emplace(bone_format->name, bone_format);
+						}
+					}
+				}
+				models.emplace(model_format->name, model_format);
+			}
+		} else {
+			std::cout << format_version << std::endl;
 		}
 
-		agentRenderer = std::make_unique<EntityRenderer>(material, model_format);
+	}
+
+	void loadModels() {
+		std::filesystem::directory_entry directory("models");
+
+		for (auto& resources : resourceManager->getResources("models")) {
+			parseModels(Json::parse(resources));
+		}
+
+		auto material = materialManager->getMaterial("entity_client");
+		material->SetTexture(textureManager->getTexture("textures/entity/camera_tripod"));
+
+		agentRenderer = std::make_unique<EntityRenderer>(material, models.at("geometry.tripod_camera"));
 	}
 
 	void loadBlocks() {
@@ -300,11 +393,7 @@ private:
 	bool _running{true};
 };
 
-extern "C" int add(int a, int b);
-
 int main(int, char**) {
-//	std::cout << add(1, 2) << std::endl;
-
 	GameWindow window("Vulkan", 1280, 720);
 	window.setMouseButtonCallback(&Mouse::handleMouseButton);
 	window.setMousePositionCallback(&Mouse::handleMousePosition);
