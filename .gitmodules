@@ -1,19 +1,15 @@
 [submodule "imgui"]
 	path = lib/imgui
 	url = https://github.com/ocornut/imgui.git
-
 [submodule "VulkanMemoryAllocator"]
 	path = lib/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-
 [submodule "fmt"]
 	path = lib/fmt
 	url = https://github.com/fmtlib/fmt.git
-
 [submodule "json"]
 	path = lib/json
 	url = https://github.com/max-pasichnyk/json.git
-
 [submodule "v8"]
 	path = lib/v8
 	url = https://github.com/v8/v8.git
