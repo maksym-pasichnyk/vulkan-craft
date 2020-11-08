@@ -70,7 +70,6 @@ add_executable(vcraft
     src/client/util/Json.hpp
     src/client/Mouse.hpp
     src/client/Keyboard.hpp
-    src/client/renderer/model/ModelRenderer.hpp
         src/client/renderer/RotData.hpp
     VertexBuilder.hpp
     src/util/math/vec3.hpp
@@ -82,14 +81,13 @@ add_executable(vcraft
     src/util/math/AABB.hpp
     src/client/renderer/TextureUVCoordinateSet.hpp
     src/world/tile/Tile.hpp
-        src/client/renderer/entity/EntityRenderer.hpp
+        src/client/renderer/EntityRenderer.hpp
         src/client/renderer/model/ModelFormat.hpp
         src/client/renderer/model/ModelBoneFormat.hpp
         src/client/renderer/model/ModelCubeFormat.hpp
     src/client/renderer/PositionTextureVertex.hpp
     src/client/renderer/TexturedQuad.hpp
-    src/client/renderer/model/ModelBox.hpp
-    src/client/renderer/RenderContext.hpp
+        src/client/renderer/RenderContext.hpp
     src/client/renderer/texture/TextureManager.hpp
     src/util/ResourceLocation.hpp
     src/resources/ResourcePack.hpp
@@ -787,7 +785,8 @@ add_executable(vcraft
     src/client/renderer/material/MaterialManager.hpp
     src/client/util/Handle.hpp
     src/util/ConnectionBit.hpp
-    src/util/FlammableBit.hpp)
+    src/util/FlammableBit.hpp 
+    src/client/renderer/Colormap.hpp)
 
 target_compile_definitions(vcraft PUBLIC
     "-DGLFW_INCLUDE_NONE"

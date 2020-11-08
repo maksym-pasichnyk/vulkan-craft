@@ -13,11 +13,12 @@
 #include "resources/ResourceManager.hpp"
 
 #include "client/renderer/RenderContext.hpp"
-#include "client/renderer/entity/EntityRenderer.hpp"
+#include "src/client/renderer/EntityRenderer.hpp"
 #include "client/renderer/texture/TextureManager.hpp"
 #include "client/renderer/texture/TextureAtlas.hpp"
 #include "client/renderer/material/MaterialManager.hpp"
 #include "client/renderer/model/ModelFormat.hpp"
+#include "client/renderer/Colormap.hpp"
 
 #include "client/renderer/BlockTessellator.hpp"
 
@@ -93,6 +94,7 @@ struct GameClient {
 		textureManager->upload("textures/blocks", atlas);
 
 		loadBlocks();
+		Colormap::initColormaps(resourceManager);
 		Tile::initTiles(textureManager);
 
 		camera = std::make_unique<Camera>(platform.get());
@@ -233,10 +235,10 @@ struct GameClient {
 			parseModels(Json::parse(resources));
 		}
 
-		auto material = materialManager->getMaterial("entity_client");
-		material->SetTexture(textureManager->getTexture("textures/entity/camera_tripod"));
+		auto material = materialManager->getMaterial("entity_static");
+		material->SetTexture(textureManager->getTexture("textures/entity/bed/white"));
 
-		agentRenderer = std::make_unique<EntityRenderer>(material, models.at("geometry.tripod_camera"));
+		agentRenderer = std::make_unique<EntityRenderer>(material, models.at("geometry.bed"));
 	}
 
 	void loadBlocks() {
@@ -328,8 +330,6 @@ private:
 
 	void camera_tick(float dt) {
 		if (Mouse::IsButtonPressed(MouseButton::Left)) {
-//			_input->setCursorState(CursorState::Locked);
-
 			float xdelta, ydelta;
 			Mouse::getDelta(xdelta, ydelta);
 
@@ -340,8 +340,6 @@ private:
 				rotationYaw = rotationYaw - xdelta * d5 * dt * 9.0;
 				rotationPitch = glm::clamp(rotationPitch - ydelta * d5 * dt * 9.0, -90.0, 90.0);
 			}
-		} else {
-//			_input->setCursorState(CursorState::Normal);
 		}
 
 		auto rot = glm::mat3(rotationMatrix());
