@@ -5,10 +5,10 @@
 #include <span>
 
 struct NativeImage {
-	void* pixels;
-	int width;
-	int height;
-	int channels;
+	void* pixels = nullptr;
+	int width = 0;
+	int height = 0;
+	int channels = 0;
 
 	static NativeImage read(std::span<char> bytes) {
 		auto data = reinterpret_cast<const unsigned char *>(bytes.data());

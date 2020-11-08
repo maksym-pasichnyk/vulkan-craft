@@ -15,17 +15,16 @@ struct MaterialManager {
 
 	void loadMetaFile(Handle<AppPlatform> platform, Handle<RenderContext> renderContext) {
 		std::string_view bytes = R"({
-			"entity_client": {
+			"entity_static": {
 				"fragmentShader": "shaders/entity.frag.spv",
-				"vertexShader": "shaders/entity.vert.spv",
-				"depthFunc": 0
+				"vertexShader": "shaders/entity.vert.spv"
 			}
 		})";
 
 		auto obj = Json::parse(bytes);
-		for (auto& [name, value] : obj.items()) {
-			auto vertexShader = createShader(platform, value.at("vertexShader").get<std::string>());
-			auto fragmentShader = createShader(platform, value.at("fragmentShader").get<std::string>());
+		for (auto& [name, define_material] : obj.items()) {
+			auto vertexShader = createShader(platform, define_material.at("vertexShader").get<std::string>());
+			auto fragmentShader = createShader(platform, define_material.at("fragmentShader").get<std::string>());
 
 			vk::PipelineShaderStageCreateInfo stages[] {
 					{.stage = vk::ShaderStageFlagBits::eVertex, .module = vertexShader, .pName = "main"},
